@@ -6,7 +6,9 @@ import type {
   RunAuthorityProvenanceReviewInput,
   SetAuthorityDecisionInput,
 } from "./authority.validators";
+import type { CreateAuthorityDefectInput } from "./authority.types";
 import {
+  createAuthorityDefect,
   getAuthorityForReview,
   listAuthoritiesForMatter,
   listAuthorityDefects,
@@ -37,4 +39,8 @@ export async function setAuthorityDecisionAction(input: SetAuthorityDecisionInpu
 
 export async function listAuthorityDefectsAction(authorityId: string) {
   return listAuthorityDefects(authorityId);
+}
+
+export async function createAuthorityDefectAction(input: CreateAuthorityDefectInput) {
+  return createAuthorityDefect(input);
 }

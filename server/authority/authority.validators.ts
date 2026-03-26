@@ -1,4 +1,11 @@
 import type { AuthorityStatus, DefectSeverity, RestartScope, VerificationStatus } from "@prisma/client";
+import type {
+  AuthorityDecision,
+  AuthorityListFilters,
+  CreateAuthorityDefectInput,
+  IntakeInput,
+  ProvenanceReviewInput,
+} from "./authority.types";
 
 const AUTHORITY_STATUSES: AuthorityStatus[] = ["candidate", "eligible", "blocked", "invalidated"];
 const VERIFICATION_STATUSES: VerificationStatus[] = [
@@ -16,33 +23,17 @@ const RESTART_SCOPES: RestartScope[] = ["none", "authority_only", "proposition",
 
 export type ListAuthoritiesForMatterInput = {
   matterId: string;
-  status?: AuthorityStatus;
-  verificationStatus?: VerificationStatus;
+  filters?: AuthorityListFilters;
 };
 
-export type RunAuthorityIntakeChecksInput = {
-  authorityId: string;
-  providedSourceText?: string;
-  providedLocator?: string;
-};
+export type RunAuthorityIntakeChecksInput = IntakeInput;
 
-export type RunAuthorityProvenanceReviewInput = {
-  authorityId: string;
-  propositionUnderReview: string;
-};
+export type RunAuthorityProvenanceReviewInput = ProvenanceReviewInput;
 
 export type SetAuthorityDecisionInput = {
   authorityId: string;
-  decision: "verified" | "verified_with_warning" | "blocked" | "invalidated";
+  decision: AuthorityDecision;
   userNote?: string;
-};
-
-export type CreateAuthorityDefectInput = {
-  authorityId: string;
-  defectType: string;
-  severity: DefectSeverity;
-  description: string;
-  restartScopeRecommended: RestartScope;
 };
 
 function assertNonEmptyString(value: unknown, field: string): asserts value is string {
@@ -53,26 +44,37 @@ function assertNonEmptyString(value: unknown, field: string): asserts value is s
 
 export function validateListAuthoritiesForMatterInput(input: ListAuthoritiesForMatterInput) {
   assertNonEmptyString(input.matterId, "matterId");
-  if (input.status && !AUTHORITY_STATUSES.includes(input.status)) throw new Error("Invalid authority status");
-  if (input.verificationStatus && !VERIFICATION_STATUSES.includes(input.verificationStatus)) {
-    throw new Error("Invalid verification status");
+  if (input.filters?.status?.some((s) => !AUTHORITY_STATUSES.includes(s))) {
+    throw new Error("Invalid authority status filter");
   }
-  return input;
+  if (input.filters?.verificationStatus?.some((s) => !VERIFICATION_STATUSES.includes(s))) {
+    throw new Error("Invalid verification status filter");
+  }
+  return {
+    ...input,
+    matterId: input.matterId.trim(),
+  };
 }
 
 export function validateRunAuthorityIntakeChecksInput(input: RunAuthorityIntakeChecksInput) {
   assertNonEmptyString(input.authorityId, "authorityId");
+  const providedSourceText = input.providedSourceText?.trim() || undefined;
+  const providedLocator = input.providedLocator?.trim() || undefined;
   return {
-    ...input,
-    providedSourceText: input.providedSourceText?.trim(),
-    providedLocator: input.providedLocator?.trim(),
+    authorityId: input.authorityId.trim(),
+    providedSourceText,
+    providedLocator,
   };
 }
 
 export function validateRunAuthorityProvenanceReviewInput(input: RunAuthorityProvenanceReviewInput) {
   assertNonEmptyString(input.authorityId, "authorityId");
   assertNonEmptyString(input.propositionUnderReview, "propositionUnderReview");
-  return { ...input, propositionUnderReview: input.propositionUnderReview.trim() };
+  const propositionUnderReview = input.propositionUnderReview.trim();
+  if (propositionUnderReview.length < 8) {
+    throw new Error("propositionUnderReview must be non-trivial");
+  }
+  return { authorityId: input.authorityId.trim(), propositionUnderReview };
 }
 
 export function validateSetAuthorityDecisionInput(input: SetAuthorityDecisionInput) {
@@ -92,5 +94,10 @@ export function validateCreateAuthorityDefectInput(input: CreateAuthorityDefectI
   assertNonEmptyString(input.description, "description");
   if (!DEFECT_SEVERITIES.includes(input.severity)) throw new Error("Invalid defect severity");
   if (!RESTART_SCOPES.includes(input.restartScopeRecommended)) throw new Error("Invalid restart scope");
-  return input;
+  return {
+    ...input,
+    authorityId: input.authorityId.trim(),
+    defectType: input.defectType.trim(),
+    description: input.description.trim(),
+  };
 }

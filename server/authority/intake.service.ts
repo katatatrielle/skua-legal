@@ -1,64 +1,121 @@
-import type { IntakeResult } from "../../lib/types";
+import type { IntakeResult } from "./authority.types";
+
+const MAX_EXCERPT_LENGTH = 1600;
+
+export function detectParagraphMarkers(text: string): boolean {
+  return /(?:\[\d+\]|\bparas?\.?\s*\d+(?:\s*[-–]\s*\d+)?)/i.test(text);
+}
+
+export function detectPageMarkers(text: string): boolean {
+  return /(?:\bpage\s+\d+\b|\bpp?\.?\s*\d+(?:\s*[-–]\s*\d+)?)/i.test(text);
+}
 
 function detectPinpointType(text: string): IntakeResult["pinpointType"] {
-  const hasParagraphMarkers = /(?:\bpara\.?\s*\d+\b|\[\d+\])/i.test(text);
-  if (hasParagraphMarkers) return "paragraphs";
-
-  const hasPageMarkers = /\b(?:p\.|pp\.)\s*\d+/i.test(text);
-  if (hasPageMarkers) return "pages";
-
+  if (detectParagraphMarkers(text)) return "paragraphs";
+  if (detectPageMarkers(text)) return "pages";
   return "none";
 }
 
-function extractExcerptLocation(text: string): string | undefined {
-  const paragraphMatch = text.match(/(?:\bpara\.?\s*(\d+)\b|\[(\d+)\])/i);
-  if (paragraphMatch) return `para ${paragraphMatch[1] ?? paragraphMatch[2]}`;
-
-  const pageMatch = text.match(/\b(?:p\.|pp\.)\s*(\d+)/i);
-  if (pageMatch) return `p. ${pageMatch[1]}`;
-
-  return undefined;
+function firstParagraphRange(text: string): string | undefined {
+  const all = [...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]));
+  if (all.length === 0) return undefined;
+  const start = all[0];
+  const end = all[Math.min(2, all.length - 1)];
+  return start === end ? `paras ${start}` : `paras ${start}-${end}`;
 }
 
-export function runIntakeChecks(params: {
+function firstPageRange(text: string): string | undefined {
+  const m = text.match(/\b(?:page|pp?\.?)\s*(\d+)(?:\s*[-–]\s*(\d+))?/i);
+  if (!m) return undefined;
+  if (!m[2]) return `p ${m[1]}`;
+  return `pp ${m[1]}-${m[2]}`;
+}
+
+export function extractExcerpt(text: string): { excerptText?: string; excerptLocation?: string } {
+  const pinpointType = detectPinpointType(text);
+  const clean = text.trim();
+  if (!clean) return {};
+  if (clean.length <= MAX_EXCERPT_LENGTH) {
+    return {
+      excerptText: clean,
+      excerptLocation:
+        pinpointType === "paragraphs"
+          ? firstParagraphRange(clean)
+          : pinpointType === "pages"
+            ? firstPageRange(clean)
+            : undefined,
+    };
+  }
+
+  return {
+    excerptText: clean.slice(0, MAX_EXCERPT_LENGTH).trim(),
+    excerptLocation:
+      pinpointType === "paragraphs"
+        ? firstParagraphRange(clean)
+        : pinpointType === "pages"
+          ? firstPageRange(clean)
+          : undefined,
+  };
+}
+
+async function fetchLocatorText(locator: string): Promise<string | null> {
+  if (locator.startsWith("text:")) return locator.slice(5).trim() || null;
+  return null;
+}
+
+export async function runDeterministicIntake(params: {
   citedName: string;
+  normalizedName?: string | null;
   providedSourceText?: string;
   providedLocator?: string;
-}): IntakeResult {
+}): Promise<IntakeResult> {
   const sourceText = params.providedSourceText?.trim();
   const locator = params.providedLocator?.trim();
 
   if (sourceText) {
+    const { excerptText, excerptLocation } = extractExcerpt(sourceText);
     return {
       existenceStatus: "pass",
       retrievalStatus: "pass",
       pinpointType: detectPinpointType(sourceText),
-      excerptText: sourceText,
-      excerptLocation: extractExcerptLocation(sourceText),
+      excerptText,
+      excerptLocation,
     };
   }
 
   if (locator) {
+    const fetchedText = await fetchLocatorText(locator);
+    if (!fetchedText) {
+      return {
+        existenceStatus: "ambiguous",
+        retrievalStatus: "fail_no_text",
+        pinpointType: "unknown",
+        defect: {
+          defectType: "TEXT_NOT_RETRIEVED",
+          severity: "major",
+          description: `Locator could not be retrieved for "${params.normalizedName ?? params.citedName}"`,
+        },
+      };
+    }
+
+    const { excerptText, excerptLocation } = extractExcerpt(fetchedText);
     return {
-      existenceStatus: "ambiguous",
-      retrievalStatus: "fail_no_text",
-      pinpointType: "unknown",
-      defect: {
-        defectType: "TEXT_NOT_RETRIEVED",
-        severity: "major",
-        description: `Unable to retrieve source text from locator: ${locator}`,
-      },
+      existenceStatus: "pass",
+      retrievalStatus: "pass",
+      pinpointType: detectPinpointType(fetchedText),
+      excerptText,
+      excerptLocation,
     };
   }
 
   return {
     existenceStatus: "ambiguous",
     retrievalStatus: "fail_no_text",
-    pinpointType: "none",
+    pinpointType: "unknown",
     defect: {
-      defectType: "AUTH_AMBIGUOUS_MATCH",
+      defectType: "TEXT_NOT_RETRIEVED",
       severity: "major",
-      description: `Citation-only intake for "${params.citedName}" is unresolved without source text`,
+      description: `Citation-only intake for "${params.normalizedName ?? params.citedName}" requires source text or locator`,
     },
   };
 }
