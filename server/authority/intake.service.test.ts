@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runDeterministicIntake } from "./intake.service";
+import { runDeterministicIntake } from "./intake.service.ts";
 
 test("Mode A: detects paragraph markers", async () => {
   const result = await runDeterministicIntake({
@@ -43,6 +43,17 @@ test("Mode B: locator failure returns fail_no_text", async () => {
     providedLocator: "https://example.com/not-supported",
   });
   assert.equal(result.retrievalStatus, "fail_no_text");
+  assert.equal(result.defect?.defectType, "TEXT_NOT_RETRIEVED");
+});
+
+test("Mode B: explicit missing locator returns not found defect", async () => {
+  const result = await runDeterministicIntake({
+    citedName: "R v Missing",
+    providedLocator: "missing:R v Missing",
+  });
+  assert.equal(result.existenceStatus, "fail_not_found");
+  assert.equal(result.retrievalStatus, "fail_no_text");
+  assert.equal(result.defect?.defectType, "AUTH_NOT_FOUND");
 });
 
 test("Mode C: citation only returns ambiguous and fail_no_text", async () => {
@@ -51,4 +62,5 @@ test("Mode C: citation only returns ambiguous and fail_no_text", async () => {
   });
   assert.equal(result.existenceStatus, "ambiguous");
   assert.equal(result.retrievalStatus, "fail_no_text");
+  assert.equal(result.defect?.defectType, "AUTH_AMBIGUOUS_MATCH");
 });

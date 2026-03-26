@@ -6,11 +6,13 @@ import type { ResearchItem } from "./types";
 interface CandidateAuthorityPanelProps {
   selectedItem: ResearchItem | null;
   onCreateAuthority: (researchItemId: string, citedName: string) => Promise<void>;
+  onCreateAuthorityAndOpenReview: (researchItemId: string, citedName: string) => Promise<void>;
 }
 
 export function CandidateAuthorityPanel({
   selectedItem,
   onCreateAuthority,
+  onCreateAuthorityAndOpenReview,
 }: CandidateAuthorityPanelProps) {
   const [customName, setCustomName] = useState("");
   const candidates = useMemo(() => selectedItem?.candidateAuthorityNames ?? [], [selectedItem]);
@@ -42,6 +44,13 @@ export function CandidateAuthorityPanel({
               >
                 Create
               </button>
+              <button
+                type="button"
+                className="text-xs border rounded px-2 py-1"
+                onClick={async () => onCreateAuthorityAndOpenReview(selectedItem.id, name)}
+              >
+                Create + Open Review
+              </button>
             </div>
           ))}
         </div>
@@ -69,7 +78,7 @@ export function CandidateAuthorityPanel({
             className="text-xs border rounded px-2 py-1"
             disabled={!customName.trim()}
             onClick={async () => {
-              await onCreateAuthority(selectedItem.id, customName.trim());
+              await onCreateAuthorityAndOpenReview(selectedItem.id, customName.trim());
               setCustomName("");
             }}
           >

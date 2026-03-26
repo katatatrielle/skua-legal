@@ -2,12 +2,14 @@
   "name": "cleanroom-law",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "packageManager": "npm@11",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "node --test lib/parsing/*.test.ts server/authority/*.test.ts server/shared/*.test.ts"
   },
   "devDependencies": {
     "typescript": "^6.0.2"

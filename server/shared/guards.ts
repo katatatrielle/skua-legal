@@ -1,5 +1,5 @@
 import type { Authority } from "@prisma/client";
-import type { OpenDefectSummary } from "../authority/authority.types";
+import type { OpenDefectSummary } from "../authority/authority.types.ts";
 
 export function canRunIntake(authority: Pick<Authority, "status">): boolean {
   return authority.status !== "invalidated";
@@ -22,11 +22,16 @@ export function canRunProvenanceReview(
 }
 
 export function canVerifyAuthority(
-  authority: Pick<Authority, "retrievalStatus" | "speakerClassification" | "fitStatus" | "status">,
+  authority: Pick<
+    Authority,
+    "retrievalStatus" | "speakerClassification" | "fitStatus" | "status" | "verificationStatus"
+  >,
   openDefects: OpenDefectSummary[]
 ): boolean {
   if (authority.status === "invalidated") return false;
+  if (authority.status === "blocked") return false;
   if (authority.retrievalStatus !== "pass") return false;
+  if (authority.verificationStatus !== "fit_reviewed") return false;
   if (authority.speakerClassification === "unknown") return false;
   if (!authority.fitStatus) return false;
 

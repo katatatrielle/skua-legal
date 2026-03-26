@@ -1,19 +1,20 @@
 import type { ResearchItemStatus } from "@prisma/client";
-import { db } from "../../lib/db";
-import { extractCandidateAuthorityNames } from "../../lib/parsing/authority-extraction";
-import { normalizeCitation } from "../../lib/parsing/citation-normalization";
+import { db } from "../../lib/db.ts";
+import { extractCandidateAuthorityNames } from "../../lib/parsing/authority-extraction.ts";
+import { normalizeCitation } from "../../lib/parsing/citation-normalization.ts";
 import type {
   CreateAuthorityFromResearchItemInput,
   CreateResearchItemInput,
   MarkResearchItemStatusInput,
   UpdateResearchItemInput,
-} from "./research.validators";
+} from "./research.validators.ts";
 import {
   validateCreateAuthorityFromResearchItemInput,
   validateCreateResearchItemInput,
   validateMarkResearchItemStatusInput,
   validateUpdateResearchItemInput,
-} from "./research.validators";
+} from "./research.validators.ts";
+import { ensureMatterExists } from "../shared/db-helpers.ts";
 
 const RESEARCH_ITEM_STATUS_TRANSITIONS: Record<ResearchItemStatus, readonly ResearchItemStatus[]> = {
   new: ["processed", "abandoned"],
@@ -27,10 +28,9 @@ function canTransition<T extends string>(map: Record<T, readonly T[]>, from: T, 
 
 export async function createResearchItem(input: CreateResearchItemInput) {
   const validated = validateCreateResearchItemInput(input);
-  const matter = await db.matter.findUnique({ where: { id: validated.matterId }, select: { id: true } });
-  if (!matter) throw new Error("Matter not found");
+  await ensureMatterExists(db, validated.matterId);
 
-  const candidateAuthorityNames = validated.runExtraction
+  const candidateAuthorityNames = validated.runExtraction !== false
     ? extractCandidateAuthorityNames(validated.rawText)
     : [];
 
@@ -47,6 +47,8 @@ export async function createResearchItem(input: CreateResearchItemInput) {
 }
 
 export async function listResearchItemsForMatter(matterId: string, status?: ResearchItemStatus) {
+  await ensureMatterExists(db, matterId);
+
   return db.researchItem.findMany({
     where: { matterId, ...(status ? { status } : {}) },
     select: {
@@ -135,6 +137,7 @@ export async function createAuthorityFromResearchItem(input: CreateAuthorityFrom
       data: {
         matterId: validated.matterId,
         citedName: normalizeCitation(validated.selectedCandidateAuthority),
+        normalizedName: normalizeCitation(validated.selectedCandidateAuthority),
         status: "candidate",
         verificationStatus: "not_started",
         existenceStatus: "ambiguous",
@@ -177,6 +180,7 @@ export async function mergeResearchItemsIntoAuthority(
       data: {
         matterId,
         citedName: normalizeCitation(citedName),
+        normalizedName: normalizeCitation(citedName),
         status: "candidate",
         verificationStatus: "not_started",
         existenceStatus: "ambiguous",

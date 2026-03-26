@@ -1,6 +1,8 @@
-import type { DefectSeverity, RestartScope, StageDetected } from "@prisma/client";
-import { db } from "../../lib/db";
-import { AuthorityNotFoundError } from "../shared/errors";
+import type { DefectSeverity, Prisma, PrismaClient, RestartScope, StageDetected } from "@prisma/client";
+import { db } from "../../lib/db.ts";
+import { AuthorityNotFoundError } from "../shared/errors.ts";
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 export type CreateAuthorityDefectInput = {
   authorityId: string;
@@ -10,14 +12,14 @@ export type CreateAuthorityDefectInput = {
   restartScopeRecommended: RestartScope;
 };
 
-export async function createAuthorityDefect(input: CreateAuthorityDefectInput) {
-  const authority = await db.authority.findUnique({
+export async function createAuthorityDefect(input: CreateAuthorityDefectInput, client: DbClient = db) {
+  const authority = await client.authority.findUnique({
     where: { id: input.authorityId },
     select: { id: true, matterId: true },
   });
   if (!authority) throw new AuthorityNotFoundError(input.authorityId);
 
-  return db.defect.create({
+  return client.defect.create({
     data: {
       matterId: authority.matterId,
       authorityId: authority.id,
@@ -39,14 +41,14 @@ export async function createOrReuseAuthorityDefect(params: {
   description: string;
   restartScopeRecommended: RestartScope;
   stageDetected?: StageDetected;
-}) {
-  const authority = await db.authority.findUnique({
+}, client: DbClient = db) {
+  const authority = await client.authority.findUnique({
     where: { id: params.authorityId },
     select: { id: true, matterId: true },
   });
   if (!authority) throw new AuthorityNotFoundError(params.authorityId);
 
-  const openExisting = await db.defect.findFirst({
+  const openExisting = await client.defect.findFirst({
     where: {
       authorityId: params.authorityId,
       defectType: params.defectType,
@@ -56,7 +58,7 @@ export async function createOrReuseAuthorityDefect(params: {
   });
   if (openExisting) return openExisting;
 
-  const resolvedExisting = await db.defect.findFirst({
+  const resolvedExisting = await client.defect.findFirst({
     where: {
       authorityId: params.authorityId,
       defectType: params.defectType,
@@ -65,7 +67,7 @@ export async function createOrReuseAuthorityDefect(params: {
     orderBy: { updatedAt: "desc" },
   });
   if (resolvedExisting) {
-    return db.defect.update({
+    return client.defect.update({
       where: { id: resolvedExisting.id },
       data: {
         status: "reopened",
@@ -78,7 +80,7 @@ export async function createOrReuseAuthorityDefect(params: {
     });
   }
 
-  return db.defect.create({
+  return client.defect.create({
     data: {
       matterId: authority.matterId,
       authorityId: authority.id,
@@ -98,7 +100,8 @@ export async function ensureAuthorityDefect(
   defectType: string,
   severity: DefectSeverity,
   description: string,
-  stageDetected: "intake" | "provenance_fit_review"
+  stageDetected: "intake" | "provenance_fit_review",
+  client: DbClient = db
 ) {
   return createOrReuseAuthorityDefect({
     authorityId,
@@ -107,7 +110,7 @@ export async function ensureAuthorityDefect(
     description,
     stageDetected,
     restartScopeRecommended: "authority_only",
-  });
+  }, client);
 }
 
 export async function listOpenDefectsByAuthority(authorityId: string) {

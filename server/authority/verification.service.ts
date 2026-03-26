@@ -1,6 +1,10 @@
 import type { Authority } from "@prisma/client";
-import { runProvenanceModel, type ProvenanceModelResponse, type ProvenancePromptPayload } from "../shared/model-client";
-import type { ProvenanceReviewResult } from "./authority.types";
+import {
+  runProvenanceModel,
+  type ProvenanceModelResponse,
+  type ProvenancePromptPayload,
+} from "../shared/model-client.ts";
+import type { ProvenanceReviewResult } from "./authority.types.ts";
 
 export function buildProvenancePromptPayload(params: {
   authority: Authority;
