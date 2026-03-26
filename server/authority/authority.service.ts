@@ -1,16 +1,31 @@
-import type { Authority, DefectSeverity } from "@prisma/client";
-import { canRunIntake, canRunProvenanceReview, canVerifyAuthority } from "../../lib/guards";
+import type { Authority, VerificationStatus } from "@prisma/client";
 import { db } from "../../lib/db";
-import { ensureAuthorityDefect } from "../defects/defect.service";
-import { runIntakeChecks } from "./intake.service";
-import { runMockProvenanceFitReview } from "./verification.service";
+import {
+  createOrReuseAuthorityDefect,
+  createAuthorityDefect as createAuthorityDefectRecord,
+  listOpenDefectsByAuthority,
+} from "../defects/defect.service";
+import { requireAuthority, ensureMatterExists } from "../shared/db-helpers";
+import {
+  AuthorityNotFoundError,
+  AuthorityDecisionNotAllowedError,
+  IntakeNotAllowedError,
+  InvalidAuthorityStateError,
+  ProvenanceReviewNotAllowedError,
+} from "../shared/errors";
+import { canRunIntake, canRunProvenanceReview, canVerifyAuthority } from "../shared/guards";
+import type { ProvenanceReviewResult } from "./authority.types";
+import { runDeterministicIntake } from "./intake.service";
+import { mapProvenanceResultToDefect, runProvenanceFitReview } from "./verification.service";
 import type {
   ListAuthoritiesForMatterInput,
   RunAuthorityIntakeChecksInput,
   RunAuthorityProvenanceReviewInput,
   SetAuthorityDecisionInput,
 } from "./authority.validators";
+import type { CreateAuthorityDefectInput } from "./authority.types";
 import {
+  validateCreateAuthorityDefectInput,
   validateListAuthoritiesForMatterInput,
   validateRunAuthorityIntakeChecksInput,
   validateRunAuthorityProvenanceReviewInput,
@@ -44,41 +59,64 @@ function canTransition<T extends string>(map: Record<T, readonly T[]>, from: T, 
 
 export async function listAuthoritiesForMatter(input: ListAuthoritiesForMatterInput) {
   const validated = validateListAuthoritiesForMatterInput(input);
+  await ensureMatterExists(db, validated.matterId);
 
   const authorities = await db.authority.findMany({
     where: {
       matterId: validated.matterId,
-      ...(validated.status ? { status: validated.status } : {}),
-      ...(validated.verificationStatus ? { verificationStatus: validated.verificationStatus } : {}),
+      ...(validated.filters?.status?.length ? { status: { in: validated.filters.status } } : {}),
+      ...(validated.filters?.verificationStatus?.length
+        ? { verificationStatus: { in: validated.filters.verificationStatus } }
+        : {}),
     },
-    include: {
+    select: {
+      id: true,
+      citedName: true,
+      normalizedName: true,
+      status: true,
+      verificationStatus: true,
+      riskLevel: true,
+      updatedAt: true,
       defects: {
         where: { status: { in: ["open", "pending_human", "reopened"] } },
+        orderBy: [{ createdAt: "desc" }],
+        select: { severity: true },
       },
+      researchItemLinks: { select: { id: true } },
     },
-    orderBy: [{ verificationStatus: "asc" }, { updatedAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }],
   });
 
-  return authorities.sort((a, b) => statusRank(a) - statusRank(b));
+  return authorities
+    .map((a) => ({
+      id: a.id,
+      citedName: a.citedName,
+      normalizedName: a.normalizedName,
+      status: a.status,
+      verificationStatus: a.verificationStatus,
+      riskLevel: a.riskLevel,
+      updatedAt: a.updatedAt,
+      defectCount: a.defects.length,
+      latestOpenDefectSeverity: a.defects[0]?.severity ?? null,
+      linkedResearchItemCount: a.researchItemLinks.length,
+    }))
+    .sort((a, b) => statusRank(a.verificationStatus) - statusRank(b.verificationStatus) || +b.updatedAt - +a.updatedAt);
 }
 
-function statusRank(authority: Authority): number {
-  if (authority.verificationStatus === "not_started") return 0;
-  if (authority.verificationStatus === "intake_passed") return 1;
-  if (
-    authority.verificationStatus === "verified_with_warning" ||
-    authority.verificationStatus === "blocked"
-  ) {
-    return 2;
-  }
-  if (authority.verificationStatus === "verified") return 3;
-  if (authority.verificationStatus === "invalidated") return 4;
-  return 5;
+function statusRank(status: VerificationStatus): number {
+  if (status === "not_started") return 0;
+  if (status === "intake_passed") return 1;
+  if (status === "provenance_reviewed" || status === "fit_reviewed") return 2;
+  if (status === "verified_with_warning") return 3;
+  if (status === "verified") return 4;
+  if (status === "blocked" || status === "invalidated") return 5;
+  return 6;
 }
 
 export async function getAuthorityForReview(authorityId: string) {
+  const trimmed = authorityId.trim();
   const authority = await db.authority.findUnique({
-    where: { id: authorityId },
+    where: { id: trimmed },
     include: {
       researchItemLinks: {
         include: {
@@ -86,95 +124,114 @@ export async function getAuthorityForReview(authorityId: string) {
         },
       },
       defects: {
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       },
     },
   });
 
-  if (!authority) throw new Error("Authority not found");
+  if (!authority) {
+    throw new AuthorityNotFoundError(trimmed);
+  }
   return authority;
 }
 
 export async function runAuthorityIntakeChecks(input: RunAuthorityIntakeChecksInput) {
   const validated = validateRunAuthorityIntakeChecksInput(input);
-  const authority = await db.authority.findUnique({ where: { id: validated.authorityId } });
-  if (!authority) throw new Error("Authority not found");
-  if (!canRunIntake(authority)) throw new Error("Authority is not eligible for intake");
+  const authority = await requireAuthority(db, validated.authorityId);
+  if (!canRunIntake(authority)) throw new IntakeNotAllowedError(validated.authorityId);
 
-  const intake = runIntakeChecks({
+  const intake = await runDeterministicIntake({
     citedName: authority.citedName,
+    normalizedName: authority.normalizedName,
     providedSourceText: validated.providedSourceText,
     providedLocator: validated.providedLocator,
   });
 
-  const verificationStatus =
-    intake.retrievalStatus === "pass" ? "intake_passed" : ("blocked" as const);
-  const nextStatus = intake.retrievalStatus === "pass" ? "candidate" : ("blocked" as const);
+  const result = await db.$transaction(async (tx) => {
+    const hasHardFailure = intake.retrievalStatus !== "pass";
+    const updated = await tx.authority.update({
+      where: { id: authority.id },
+      data: {
+        existenceStatus: intake.existenceStatus,
+        retrievalStatus: intake.retrievalStatus,
+        pinpointType: intake.pinpointType === "unknown" ? "none" : intake.pinpointType,
+        excerptText: intake.excerptText ?? null,
+        excerptLocation: intake.excerptLocation ?? null,
+        verificationStatus: hasHardFailure ? "blocked" : "intake_passed",
+      },
+    });
 
-  const updated = await db.authority.update({
-    where: { id: authority.id },
-    data: {
-      existenceStatus: intake.existenceStatus,
-      retrievalStatus: intake.retrievalStatus,
-      pinpointType: intake.pinpointType === "unknown" ? "none" : intake.pinpointType,
-      excerptText: intake.excerptText ?? authority.excerptText,
-      excerptLocation: intake.excerptLocation ?? authority.excerptLocation,
-      verificationStatus,
-      status: nextStatus,
-    },
+    if (intake.defect) {
+      await createOrReuseAuthorityDefect({
+        authorityId: authority.id,
+        defectType: intake.defect.defectType,
+        severity: intake.defect.severity,
+        description: intake.defect.description,
+        restartScopeRecommended: "authority_only",
+        stageDetected: "intake",
+      });
+    }
+
+    const defects = await tx.defect.findMany({
+      where: { authorityId: authority.id },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
+
+    return { authority: updated, defects };
   });
 
-  if (intake.defect) {
-    await ensureAuthorityDefect(
-      authority.id,
-      intake.defect.defectType,
-      intake.defect.severity,
-      intake.defect.description,
-      "intake"
-    );
-  }
-
-  return updated;
+  return {
+    authority: result.authority,
+    intakeResult: intake,
+    defects: result.defects,
+  };
 }
 
 export async function runAuthorityProvenanceReview(input: RunAuthorityProvenanceReviewInput) {
   const validated = validateRunAuthorityProvenanceReviewInput(input);
-  const authority = await db.authority.findUnique({ where: { id: validated.authorityId } });
-  if (!authority) throw new Error("Authority not found");
+  const authority = await requireAuthority(db, validated.authorityId);
   if (!canRunProvenanceReview(authority)) {
-    throw new Error("Authority does not satisfy provenance review preconditions");
+    throw new ProvenanceReviewNotAllowedError(validated.authorityId);
   }
 
-  const review = await runMockProvenanceFitReview({
+  const review: ProvenanceReviewResult = await runProvenanceFitReview({
     authority,
     propositionUnderReview: validated.propositionUnderReview,
   });
 
-  const updated = await db.authority.update({
-    where: { id: authority.id },
-    data: {
-      propositionUnderReview: validated.propositionUnderReview,
-      speakerClassification: review.speakerClassification,
-      fitStatus: review.fitStatus,
-      riskLevel: review.riskLevel,
-      verificationStatus: "fit_reviewed",
-    },
+  const result = await db.$transaction(async (tx) => {
+    const updated = await tx.authority.update({
+      where: { id: authority.id },
+      data: {
+        propositionUnderReview: validated.propositionUnderReview,
+        speakerClassification: review.speakerClassification,
+        fitStatus: review.fitStatus,
+        riskLevel: review.riskLevel,
+        verificationStatus: "fit_reviewed",
+      },
+    });
+
+    const mappedDefect = mapProvenanceResultToDefect(review);
+    if (mappedDefect) {
+      await createOrReuseAuthorityDefect({
+        authorityId: authority.id,
+        defectType: mappedDefect.defectType,
+        severity: mappedDefect.severity,
+        description: review.verificationSummary,
+        restartScopeRecommended: "proposition",
+        stageDetected: "provenance_fit_review",
+      });
+    }
+
+    const defects = await tx.defect.findMany({
+      where: { authorityId: authority.id },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
+
+    return { authority: updated, defects };
   });
 
-  if (review.defectType) {
-    await ensureAuthorityDefect(
-      authority.id,
-      review.defectType,
-      review.riskLevel === "high" ? ("critical" as DefectSeverity) : "major",
-      review.verificationSummary,
-      "provenance_fit_review"
-    );
-  }
-
-  return {
-    authority: updated,
-    review,
-  };
+  return { authority: result.authority, reviewResult: review, defects: result.defects };
 }
 
 function mapDecisionToState(decision: SetAuthorityDecisionInput["decision"]) {
@@ -192,46 +249,70 @@ function mapDecisionToState(decision: SetAuthorityDecisionInput["decision"]) {
 
 export async function setAuthorityDecision(input: SetAuthorityDecisionInput) {
   const validated = validateSetAuthorityDecisionInput(input);
-  const authority = await db.authority.findUnique({
-    where: { id: validated.authorityId },
-    include: { defects: true },
-  });
-  if (!authority) throw new Error("Authority not found");
+  const authority = await requireAuthority(db, validated.authorityId);
+  const openDefects = await listOpenDefectsByAuthority(authority.id);
 
   const next = mapDecisionToState(validated.decision);
   if (!canTransition(VERIFICATION_STATUS_TRANSITIONS, authority.verificationStatus, next.verificationStatus)) {
-    throw new Error(
+    throw new InvalidAuthorityStateError(
       `Invalid verification status transition: ${authority.verificationStatus} -> ${next.verificationStatus}`
     );
   }
   if (!canTransition(AUTHORITY_STATUS_TRANSITIONS, authority.status, next.status)) {
-    throw new Error(`Invalid authority status transition: ${authority.status} -> ${next.status}`);
+    throw new InvalidAuthorityStateError(
+      `Invalid authority status transition: ${authority.status} -> ${next.status}`
+    );
   }
-  if ((validated.decision === "verified" || validated.decision === "verified_with_warning") &&
-      !canVerifyAuthority(authority, authority.defects)) {
-    throw new Error("Authority is not eligible to verify");
+  if (
+    (validated.decision === "verified" || validated.decision === "verified_with_warning") &&
+    !canVerifyAuthority(authority, openDefects)
+  ) {
+    throw new AuthorityDecisionNotAllowedError("Authority is not eligible for verification");
   }
-
-  const updated = await db.authority.update({
-    where: { id: authority.id },
-    data: {
-      verificationStatus: next.verificationStatus,
-      status: next.status,
-    },
-  });
-
-  if (validated.decision === "blocked" || validated.decision === "invalidated") {
-    const defectType = validated.decision === "blocked" ? "PROPOSITION_UNSUPPORTED" : "AUTH_NOT_FOUND";
-    await ensureAuthorityDefect(
-      authority.id,
-      defectType,
-      validated.decision === "invalidated" ? "critical" : "major",
-      validated.userNote || `Authority marked as ${validated.decision}`,
-      "provenance_fit_review"
+  if (validated.decision === "verified" && authority.fitStatus !== "supports") {
+    throw new AuthorityDecisionNotAllowedError(
+      "Decision 'verified' requires fitStatus='supports'. Use verified_with_warning for narrower support."
+    );
+  }
+  if (
+    validated.decision === "verified_with_warning" &&
+    (!authority.fitStatus || authority.fitStatus === "does_not_support")
+  ) {
+    throw new AuthorityDecisionNotAllowedError(
+      "Decision 'verified_with_warning' requires at least partial support."
     );
   }
 
-  return updated;
+  const result = await db.$transaction(async (tx) => {
+    const updated = await tx.authority.update({
+      where: { id: authority.id },
+      data: {
+        verificationStatus: next.verificationStatus,
+        status: next.status,
+      },
+    });
+
+    if (validated.decision === "blocked" || validated.decision === "invalidated") {
+      const defectType = validated.decision === "blocked" ? "PROPOSITION_UNSUPPORTED" : "AUTH_INVALIDATED";
+      await createOrReuseAuthorityDefect({
+        authorityId: authority.id,
+        defectType,
+        severity: validated.decision === "invalidated" ? "critical" : "major",
+        description: validated.userNote || `Authority marked as ${validated.decision}`,
+        restartScopeRecommended: "authority_only",
+        stageDetected: "provenance_fit_review",
+      });
+    }
+
+    const defects = await tx.defect.findMany({
+      where: { authorityId: authority.id },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
+
+    return { authority: updated, defects };
+  });
+
+  return result;
 }
 
 export async function listAuthorityDefects(authorityId: string) {
@@ -239,4 +320,9 @@ export async function listAuthorityDefects(authorityId: string) {
     where: { authorityId },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
+}
+
+export async function createAuthorityDefect(input: CreateAuthorityDefectInput) {
+  const validated = validateCreateAuthorityDefectInput(input);
+  return createAuthorityDefectRecord(validated);
 }

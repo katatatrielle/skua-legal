@@ -1,49 +1,64 @@
 import type { Authority } from "@prisma/client";
-import type { ProvenanceReviewResult } from "../../lib/types";
+import { runProvenanceModel, type ProvenanceModelResponse, type ProvenancePromptPayload } from "../shared/model-client";
+import type { ProvenanceReviewResult } from "./authority.types";
 
-export async function runMockProvenanceFitReview(params: {
+export function buildProvenancePromptPayload(params: {
+  authority: Authority;
+  propositionUnderReview: string;
+}): ProvenancePromptPayload {
+  return {
+    authority: {
+      citedName: params.authority.citedName,
+      normalizedName: params.authority.normalizedName,
+      jurisdiction: params.authority.jurisdiction,
+      courtOrBody: params.authority.court,
+      date: params.authority.date?.toISOString() ?? null,
+    },
+    propositionUnderReview: params.propositionUnderReview,
+    excerptText: params.authority.excerptText ?? "",
+    excerptLocation: params.authority.excerptLocation,
+    surroundingContext: null,
+  };
+}
+
+function parseModelResult(raw: ProvenanceModelResponse): ProvenanceReviewResult {
+  return {
+    speakerClassification: raw.speakerClassification,
+    fitStatus: raw.fitStatus,
+    riskLevel: raw.riskLevel,
+    verificationSummary: raw.verificationSummary,
+  };
+}
+
+export async function runProvenanceFitReview(params: {
   authority: Authority;
   propositionUnderReview: string;
 }): Promise<ProvenanceReviewResult> {
-  const proposition = params.propositionUnderReview.toLowerCase();
-  const excerpt = (params.authority.excerptText ?? "").toLowerCase();
+  const payload = buildProvenancePromptPayload(params);
+  const modelResult = await runProvenanceModel(payload);
+  return parseModelResult(modelResult);
+}
 
-  let fitStatus: ProvenanceReviewResult["fitStatus"] = "partial_support";
-  let riskLevel: ProvenanceReviewResult["riskLevel"] = "medium";
-  let speakerClassification: ProvenanceReviewResult["speakerClassification"] = "unknown";
-  let defectType: string | undefined;
-
-  if (excerpt.includes("held") || excerpt.includes("holding")) {
-    speakerClassification = "court_holding";
-  } else if (excerpt.includes("dicta")) {
-    speakerClassification = "dicta";
-    defectType = "DICTA_NOT_HOLDING";
-  } else if (excerpt.includes("argues") || excerpt.includes("submits")) {
-    speakerClassification = "party_submission";
-    defectType = "COUNSEL_ARG_AS_LAW";
+export function mapProvenanceResultToDefect(
+  result: ProvenanceReviewResult
+): { defectType: string; severity: "critical" | "major" | "minor" } | null {
+  if (result.speakerClassification === "party_submission") {
+    return { defectType: "COUNSEL_ARG_AS_LAW", severity: "major" };
   }
-
-  if (excerpt.includes(proposition.slice(0, Math.min(32, proposition.length)))) {
-    fitStatus = "supports";
-    riskLevel = "low";
-  } else if (speakerClassification === "court_holding") {
-    fitStatus = "supports_narrower_only";
-    riskLevel = "medium";
-    defectType = defectType ?? "SUPPORTS_NARROWER_ONLY";
-  } else {
-    fitStatus = "does_not_support";
-    riskLevel = "high";
-    defectType = defectType ?? "PROPOSITION_UNSUPPORTED";
+  if (result.speakerClassification === "quoted_authority" && result.riskLevel !== "low") {
+    return { defectType: "NONADOPTED_QUOTED_SOURCE", severity: "major" };
   }
-
-  return {
-    speakerClassification,
-    fitStatus,
-    riskLevel,
-    verificationSummary:
-      fitStatus === "supports"
-        ? "Excerpt appears to support the proposition as written."
-        : "Excerpt does not cleanly support the proposition without qualification.",
-    defectType,
-  };
+  if (result.fitStatus === "does_not_support") {
+    return { defectType: "PROPOSITION_UNSUPPORTED", severity: "critical" };
+  }
+  if (result.fitStatus === "supports_narrower_only") {
+    return { defectType: "SUPPORTS_NARROWER_ONLY", severity: "major" };
+  }
+  if (result.speakerClassification === "dicta") {
+    return { defectType: "DICTA_NOT_HOLDING", severity: "major" };
+  }
+  if (result.speakerClassification === "procedural_history") {
+    return { defectType: "PROCEDURAL_NOT_SUBSTANTIVE", severity: "major" };
+  }
+  return null;
 }
