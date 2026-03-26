@@ -1,0 +1,15 @@
+{
+  "name": "cleanroom-law",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@11",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}
