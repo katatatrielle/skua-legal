@@ -1,9 +1,5 @@
-import type {
-  Authority,
-  ResearchItem,
-  ResearchItemStatus,
-  SourceType,
-} from "../components/research/types";
+import type { Authority, ResearchItem, ResearchItemStatus, SourceType } from "../components/research/types";
+export { listAuthoritiesForMatter } from "./authority.service";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -84,10 +80,4 @@ export async function createAuthorityFromResearchItem(
   });
   if (!res.ok) throw new Error("Failed to create authority");
   return (await res.json()) as Authority;
-}
-
-export async function listAuthoritiesForMatter(matterId: string): Promise<Authority[]> {
-  const res = await fetch(`/api/matters/${matterId}/authorities`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to list authorities");
-  return (await res.json()) as Authority[];
 }

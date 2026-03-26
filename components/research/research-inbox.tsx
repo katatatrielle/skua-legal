@@ -91,6 +91,15 @@ export function ResearchInbox({ matterId, matterTitle, matterDescription }: Rese
     [matterId, refreshItems]
   );
 
+  const handleCreateAuthorityAndOpenReview = useCallback(
+    async (researchItemId: string, citedName: string) => {
+      const authority = await createAuthorityFromResearchItem(matterId, researchItemId, citedName);
+      await refreshItems();
+      window.location.href = `/matters/${matterId}/authorities?authorityId=${authority.id}`;
+    },
+    [matterId, refreshItems]
+  );
+
   const selectedItem = items.find((i) => i.id === selectedId) ?? null;
   const statusCounts = useMemo(
     () => ({
@@ -154,7 +163,11 @@ export function ResearchInbox({ matterId, matterTitle, matterDescription }: Rese
         </div>
 
         <div className="lg:col-span-2">
-          <CandidateAuthorityPanel selectedItem={selectedItem} onCreateAuthority={handleCreateAuthority} />
+          <CandidateAuthorityPanel
+            selectedItem={selectedItem}
+            onCreateAuthority={handleCreateAuthority}
+            onCreateAuthorityAndOpenReview={handleCreateAuthorityAndOpenReview}
+          />
         </div>
       </div>
     </div>

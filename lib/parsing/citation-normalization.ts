@@ -1,6 +1,7 @@
 export function normalizeCitation(input: string): string {
   return input
     .trim()
+    .replace(/^(?:see(?: also)?|cf\.?|compare|check|consider)\s+/i, "")
     .replace(/\s+/g, " ")
     .replace(/[;,]+$/g, "")
     .replace(/\bv\.\b/gi, "v.");

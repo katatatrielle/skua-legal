@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { AuthorityNotFoundError, MatterNotFoundError } from "./errors";
+import { AuthorityNotFoundError, MatterNotFoundError } from "./errors.ts";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 

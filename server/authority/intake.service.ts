@@ -1,4 +1,4 @@
-import type { IntakeResult } from "./authority.types";
+import type { IntakeResult } from "./authority.types.ts";
 
 const MAX_EXCERPT_LENGTH = 1600;
 
@@ -60,6 +60,7 @@ export function extractExcerpt(text: string): { excerptText?: string; excerptLoc
 
 async function fetchLocatorText(locator: string): Promise<string | null> {
   if (locator.startsWith("text:")) return locator.slice(5).trim() || null;
+  if (locator.startsWith("missing:")) return "__AUTHORITY_NOT_FOUND__";
   return null;
 }
 
@@ -85,6 +86,19 @@ export async function runDeterministicIntake(params: {
 
   if (locator) {
     const fetchedText = await fetchLocatorText(locator);
+    if (fetchedText === "__AUTHORITY_NOT_FOUND__") {
+      return {
+        existenceStatus: "fail_not_found",
+        retrievalStatus: "fail_no_text",
+        pinpointType: "unknown",
+        defect: {
+          defectType: "AUTH_NOT_FOUND",
+          severity: "critical",
+          description: `Authority could not be found for "${params.normalizedName ?? params.citedName}"`,
+        },
+      };
+    }
+
     if (!fetchedText) {
       return {
         existenceStatus: "ambiguous",
@@ -113,9 +127,9 @@ export async function runDeterministicIntake(params: {
     retrievalStatus: "fail_no_text",
     pinpointType: "unknown",
     defect: {
-      defectType: "TEXT_NOT_RETRIEVED",
+      defectType: "AUTH_AMBIGUOUS_MATCH",
       severity: "major",
-      description: `Citation-only intake for "${params.normalizedName ?? params.citedName}" requires source text or locator`,
+      description: `Citation-only intake for "${params.normalizedName ?? params.citedName}" remains ambiguous until source text or a resolvable locator is supplied`,
     },
   };
 }

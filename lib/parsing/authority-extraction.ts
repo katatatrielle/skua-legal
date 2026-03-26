@@ -1,4 +1,4 @@
-import { uniqueNormalizedCitations } from "./citation-normalization";
+import { uniqueNormalizedCitations } from "./citation-normalization.ts";
 
 const NEUTRAL_CITATION_REGEX =
   /\b\d{4}\s+(?:ONCA|ONSC|SCC|ABCA|ABQB|BCCA|BCSC|CanLII)\s+\d+\b/gi;

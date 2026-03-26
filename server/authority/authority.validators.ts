@@ -5,7 +5,7 @@ import type {
   CreateAuthorityDefectInput,
   IntakeInput,
   ProvenanceReviewInput,
-} from "./authority.types";
+} from "./authority.types.ts";
 
 const AUTHORITY_STATUSES: AuthorityStatus[] = ["candidate", "eligible", "blocked", "invalidated"];
 const VERIFICATION_STATUSES: VerificationStatus[] = [

@@ -5,7 +5,7 @@ import {
   canRunIntake,
   canRunProvenanceReview,
   canVerifyAuthority,
-} from "./guards";
+} from "./guards.ts";
 
 test("invalidated authority cannot run intake", () => {
   assert.equal(canRunIntake({ status: "invalidated" }), false);
@@ -37,6 +37,10 @@ test("verified_with_warning can attach downstream", () => {
   );
 });
 
+test("candidate cannot attach downstream", () => {
+  assert.equal(canAttachAuthorityDownstream({ status: "candidate", verificationStatus: "fit_reviewed" }), false);
+});
+
 test("verify guard fails without review fields", () => {
   const allowed = canVerifyAuthority(
     {
@@ -44,8 +48,30 @@ test("verify guard fails without review fields", () => {
       retrievalStatus: "pass",
       speakerClassification: "unknown",
       fitStatus: null,
+      verificationStatus: "intake_passed",
     },
     []
   );
   assert.equal(allowed, false);
+});
+
+test("blocked authority cannot verify even with fit fields present", () => {
+  const allowed = canVerifyAuthority(
+    {
+      status: "blocked",
+      retrievalStatus: "pass",
+      speakerClassification: "court_holding",
+      fitStatus: "supports",
+      verificationStatus: "fit_reviewed",
+    },
+    []
+  );
+  assert.equal(allowed, false);
+});
+
+test("verified_with_warning remains attachable", () => {
+  assert.equal(
+    canAttachAuthorityDownstream({ status: "eligible", verificationStatus: "verified_with_warning" }),
+    true
+  );
 });

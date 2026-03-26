@@ -1,36 +1,36 @@
 import type { Authority, VerificationStatus } from "@prisma/client";
-import { db } from "../../lib/db";
+import { db } from "../../lib/db.ts";
 import {
   createOrReuseAuthorityDefect,
   createAuthorityDefect as createAuthorityDefectRecord,
   listOpenDefectsByAuthority,
-} from "../defects/defect.service";
-import { requireAuthority, ensureMatterExists } from "../shared/db-helpers";
+} from "../defects/defect.service.ts";
+import { requireAuthority, ensureMatterExists } from "../shared/db-helpers.ts";
 import {
   AuthorityNotFoundError,
   AuthorityDecisionNotAllowedError,
   IntakeNotAllowedError,
   InvalidAuthorityStateError,
   ProvenanceReviewNotAllowedError,
-} from "../shared/errors";
-import { canRunIntake, canRunProvenanceReview, canVerifyAuthority } from "../shared/guards";
-import type { ProvenanceReviewResult } from "./authority.types";
-import { runDeterministicIntake } from "./intake.service";
-import { mapProvenanceResultToDefect, runProvenanceFitReview } from "./verification.service";
+} from "../shared/errors.ts";
+import { canRunIntake, canRunProvenanceReview, canVerifyAuthority } from "../shared/guards.ts";
+import type { ProvenanceReviewResult } from "./authority.types.ts";
+import { runDeterministicIntake } from "./intake.service.ts";
+import { mapProvenanceResultToDefect, runProvenanceFitReview } from "./verification.service.ts";
 import type {
   ListAuthoritiesForMatterInput,
   RunAuthorityIntakeChecksInput,
   RunAuthorityProvenanceReviewInput,
   SetAuthorityDecisionInput,
-} from "./authority.validators";
-import type { CreateAuthorityDefectInput } from "./authority.types";
+} from "./authority.validators.ts";
+import type { CreateAuthorityDefectInput } from "./authority.types.ts";
 import {
   validateCreateAuthorityDefectInput,
   validateListAuthoritiesForMatterInput,
   validateRunAuthorityIntakeChecksInput,
   validateRunAuthorityProvenanceReviewInput,
   validateSetAuthorityDecisionInput,
-} from "./authority.validators";
+} from "./authority.validators.ts";
 
 const AUTHORITY_STATUS_TRANSITIONS: Record<Authority["status"], readonly Authority["status"][]> = {
   candidate: ["eligible", "blocked", "invalidated"],
@@ -49,7 +49,7 @@ const VERIFICATION_STATUS_TRANSITIONS: Record<
   fit_reviewed: ["verified", "verified_with_warning", "blocked", "invalidated"],
   verified: ["blocked", "invalidated"],
   verified_with_warning: ["verified", "blocked", "invalidated"],
-  blocked: ["intake_passed", "provenance_reviewed", "fit_reviewed", "verified", "verified_with_warning", "invalidated"],
+  blocked: ["intake_passed", "invalidated"],
   invalidated: [],
 };
 
@@ -107,9 +107,9 @@ function statusRank(status: VerificationStatus): number {
   if (status === "not_started") return 0;
   if (status === "intake_passed") return 1;
   if (status === "provenance_reviewed" || status === "fit_reviewed") return 2;
-  if (status === "verified_with_warning") return 3;
+  if (status === "verified_with_warning" || status === "blocked") return 3;
   if (status === "verified") return 4;
-  if (status === "blocked" || status === "invalidated") return 5;
+  if (status === "invalidated") return 5;
   return 6;
 }
 
@@ -149,6 +149,19 @@ export async function runAuthorityIntakeChecks(input: RunAuthorityIntakeChecksIn
 
   const result = await db.$transaction(async (tx) => {
     const hasHardFailure = intake.retrievalStatus !== "pass";
+    const nextStatus =
+      intake.existenceStatus === "fail_not_found"
+        ? "invalidated"
+        : hasHardFailure
+          ? "blocked"
+          : "candidate";
+    const nextVerificationStatus =
+      intake.existenceStatus === "fail_not_found"
+        ? "invalidated"
+        : hasHardFailure
+          ? "blocked"
+          : "intake_passed";
+
     const updated = await tx.authority.update({
       where: { id: authority.id },
       data: {
@@ -157,7 +170,12 @@ export async function runAuthorityIntakeChecks(input: RunAuthorityIntakeChecksIn
         pinpointType: intake.pinpointType === "unknown" ? "none" : intake.pinpointType,
         excerptText: intake.excerptText ?? null,
         excerptLocation: intake.excerptLocation ?? null,
-        verificationStatus: hasHardFailure ? "blocked" : "intake_passed",
+        speakerClassification: "unknown",
+        propositionUnderReview: null,
+        fitStatus: null,
+        riskLevel: null,
+        status: nextStatus,
+        verificationStatus: nextVerificationStatus,
       },
     });
 
@@ -169,7 +187,7 @@ export async function runAuthorityIntakeChecks(input: RunAuthorityIntakeChecksIn
         description: intake.defect.description,
         restartScopeRecommended: "authority_only",
         stageDetected: "intake",
-      });
+      }, tx);
     }
 
     const defects = await tx.defect.findMany({
@@ -220,7 +238,7 @@ export async function runAuthorityProvenanceReview(input: RunAuthorityProvenance
         description: review.verificationSummary,
         restartScopeRecommended: "proposition",
         stageDetected: "provenance_fit_review",
-      });
+      }, tx);
     }
 
     const defects = await tx.defect.findMany({
@@ -301,7 +319,7 @@ export async function setAuthorityDecision(input: SetAuthorityDecisionInput) {
         description: validated.userNote || `Authority marked as ${validated.decision}`,
         restartScopeRecommended: "authority_only",
         stageDetected: "provenance_fit_review",
-      });
+      }, tx);
     }
 
     const defects = await tx.defect.findMany({
