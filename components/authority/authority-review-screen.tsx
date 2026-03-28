@@ -6,8 +6,10 @@ import {
   listAuthoritiesForMatter,
   runAuthorityIntake,
   runAuthorityReview,
+  setAuthorityPreferredSource,
   setAuthorityDecision,
 } from "../../services/authority.service";
+import { createResearchItem } from "../../services/research.service";
 import { AuthorityReviewPanel } from "./authority-review-panel";
 import { AuthorityReviewQueue } from "./authority-review-queue";
 import type { AuthorityQueueItem, AuthorityReviewRecord } from "./types";
@@ -128,7 +130,13 @@ export function AuthorityReviewScreen({
               href={`/matters/${matterId}/research`}
               className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900"
             >
-              Back to research
+              Research inbox
+            </a>
+            <a
+              href={`/matters/${matterId}/draft`}
+              className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900"
+            >
+              Draft workspace
             </a>
           </div>
           <div className="mt-3 text-sm text-slate-600">
@@ -160,6 +168,24 @@ export function AuthorityReviewScreen({
             onRunIntake={(input) => runMutation(() => runAuthorityIntake(input), input.authorityId)}
             onRunReview={(input) => runMutation(() => runAuthorityReview(input), input.authorityId)}
             onSetDecision={(input) => runMutation(() => setAuthorityDecision(input), input.authorityId)}
+            onSetPreferredSource={(input) =>
+              runMutation(() => setAuthorityPreferredSource(input), input.authorityId)
+            }
+            onAddSourceItem={(input) =>
+              runMutation(async () => {
+                const researchItem = await createResearchItem({
+                  matterId,
+                  rawText: input.rawText,
+                  sourceType: input.sourceUrl ? "link" : "snippet",
+                  sourceUrl: input.sourceUrl,
+                  notes: input.notes,
+                });
+                return setAuthorityPreferredSource({
+                  authorityId: input.authorityId,
+                  researchItemId: researchItem.id,
+                });
+              }, input.authorityId)
+            }
           />
         </div>
       </div>

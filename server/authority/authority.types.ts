@@ -21,6 +21,11 @@ export type IntakeInput = {
   providedLocator?: string;
 };
 
+export type UpdateAuthorityPreferredSourceInput = {
+  authorityId: string;
+  researchItemId?: string | null;
+};
+
 export type IntakeResult = {
   existenceStatus: "pass" | "ambiguous" | "fail_not_found";
   retrievalStatus: "pass" | "fail_no_text";

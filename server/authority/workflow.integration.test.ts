@@ -557,3 +557,77 @@ test("workflow: narrowing support requires verified_with_warning", async () => {
   assert.equal(defects.length, 1);
   assert.equal(defects[0]?.severity, "major");
 });
+
+test("workflow: insufficient intake source info blocks authority and prevents eligible transition", async () => {
+  const matter = fakeDb.seedMatter({ title: "Blocked intake matter" });
+
+  const researchItem = await researchService.createResearchItem({
+    matterId: matter.id,
+    rawText: "Bare citation only: Example v. Thin Record",
+    sourceType: "case_citation",
+  });
+
+  const authority = await researchService.createAuthorityFromResearchItem({
+    matterId: matter.id,
+    researchItemId: researchItem.id,
+    selectedCandidateAuthority: "Example v. Thin Record",
+  });
+
+  const intake = await authorityService.runAuthorityIntakeChecks({
+    authorityId: authority.id,
+  });
+
+  assert.equal(intake.authority.status, "blocked");
+  assert.equal(intake.authority.verificationStatus, "blocked");
+  assert.equal(intake.intakeResult.defect?.defectType, "AUTH_AMBIGUOUS_MATCH");
+  assert.equal(intake.defects.length, 1);
+  assert.equal(intake.defects[0]?.defectType, "AUTH_AMBIGUOUS_MATCH");
+
+  const reloaded = await authorityService.getAuthorityForReview(authority.id);
+  assert.equal(reloaded.status, "blocked");
+  assert.equal(reloaded.defects.length, 1);
+
+  await assert.rejects(
+    authorityService.setAuthorityDecision({
+      authorityId: authority.id,
+      decision: "verified_with_warning",
+    }),
+    /Invalid verification status transition|not eligible/
+  );
+});
+
+test("workflow: duplicate provenance reruns do not create duplicate open defects", async () => {
+  const matter = fakeDb.seedMatter({ title: "Deduped defect matter" });
+
+  const researchItem = await researchService.createResearchItem({
+    matterId: matter.id,
+    rawText: "Example v. Narrow Support",
+    sourceType: "snippet",
+  });
+
+  const authority = await researchService.createAuthorityFromResearchItem({
+    matterId: matter.id,
+    researchItemId: researchItem.id,
+    selectedCandidateAuthority: "Example v. Narrow Support",
+  });
+
+  await authorityService.runAuthorityIntakeChecks({
+    authorityId: authority.id,
+    providedSourceText: "[8] We conclude this proposition applies only on the narrow contractual wording before us.",
+  });
+
+  await authorityService.runAuthorityProvenanceReview({
+    authorityId: authority.id,
+    propositionUnderReview: "The proposition applies in all employment disputes regardless of contractual wording.",
+  });
+
+  await authorityService.runAuthorityProvenanceReview({
+    authorityId: authority.id,
+    propositionUnderReview: "The proposition applies in all employment disputes regardless of contractual wording.",
+  });
+
+  const defects = await authorityService.listAuthorityDefects(authority.id);
+  assert.equal(defects.length, 1);
+  assert.equal(defects[0]?.defectType, "SUPPORTS_NARROWER_ONLY");
+  assert.equal(defects[0]?.status, "open");
+});

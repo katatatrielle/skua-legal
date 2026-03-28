@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import type { SourceType } from "./types";
 
 interface ResearchItemFormProps {
-  onSubmit: (data: { rawText: string; sourceType: SourceType; notes: string }) => Promise<void>;
+  onSubmit: (data: { rawText?: string; sourceType: SourceType; sourceUrl?: string; notes: string }) => Promise<void>;
 }
 
 const SOURCE_TYPES: { value: SourceType; label: string }[] = [
@@ -18,20 +18,27 @@ const SOURCE_TYPES: { value: SourceType; label: string }[] = [
 export function ResearchItemForm({ onSubmit }: ResearchItemFormProps) {
   const [rawText, setRawText] = useState("");
   const [sourceType, setSourceType] = useState<SourceType>("note");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = useCallback(async () => {
-    if (!rawText.trim()) return;
+    if (!rawText.trim() && !sourceUrl.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ rawText: rawText.trim(), sourceType, notes: notes.trim() });
+      await onSubmit({
+        rawText: rawText.trim() || undefined,
+        sourceType,
+        sourceUrl: sourceUrl.trim() || undefined,
+        notes: notes.trim(),
+      });
       setRawText("");
+      setSourceUrl("");
       setNotes("");
     } finally {
       setSubmitting(false);
     }
-  }, [notes, onSubmit, rawText, sourceType]);
+  }, [notes, onSubmit, rawText, sourceType, sourceUrl]);
 
   return (
     <form
@@ -65,8 +72,15 @@ export function ResearchItemForm({ onSubmit }: ResearchItemFormProps) {
             await submit();
           }
         }}
-        placeholder="Paste research text, citation, or notes here..."
+        placeholder="Paste research text, citation, or excerpt here. Leave blank if you're adding a URL-backed source only."
         className="w-full min-h-[120px] border rounded p-2 text-sm"
+      />
+
+      <input
+        value={sourceUrl}
+        onChange={(e) => setSourceUrl(e.target.value)}
+        placeholder="Optional source URL, e.g. a CanLII decision link"
+        className="w-full border rounded p-2 text-sm"
       />
 
       <input
@@ -78,7 +92,7 @@ export function ResearchItemForm({ onSubmit }: ResearchItemFormProps) {
 
       <button
         type="submit"
-        disabled={!rawText.trim() || submitting}
+        disabled={(!rawText.trim() && !sourceUrl.trim()) || submitting}
         className="w-full border rounded p-2 text-sm disabled:opacity-60"
       >
         {submitting ? "Adding..." : "Add to Inbox"}

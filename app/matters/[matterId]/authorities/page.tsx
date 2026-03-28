@@ -1,5 +1,8 @@
 import { AuthorityReviewScreen } from "../../../../components/authority/authority-review-screen";
 import { db } from "../../../../lib/db";
+import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 type AuthoritiesPageProps = {
   params: Promise<{ matterId: string }>;
@@ -13,12 +16,13 @@ export default async function AuthoritiesPage({ params, searchParams }: Authorit
     where: { id: matterId },
     select: { title: true, mainIssue: true, courseOrContext: true },
   });
+  if (!matter) notFound();
 
   return (
     <AuthorityReviewScreen
       matterId={matterId}
-      matterTitle={matter?.title ?? "Matter"}
-      matterDescription={matter?.mainIssue ?? matter?.courseOrContext ?? "Authority Review"}
+      matterTitle={matter.title}
+      matterDescription={matter.mainIssue ?? matter.courseOrContext ?? "Authority Review"}
       initialAuthorityId={resolvedSearchParams?.authorityId}
     />
   );

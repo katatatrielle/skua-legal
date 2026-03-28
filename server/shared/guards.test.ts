@@ -41,6 +41,10 @@ test("candidate cannot attach downstream", () => {
   assert.equal(canAttachAuthorityDownstream({ status: "candidate", verificationStatus: "fit_reviewed" }), false);
 });
 
+test("invalidated authority is never attachable", () => {
+  assert.equal(canAttachAuthorityDownstream({ status: "invalidated", verificationStatus: "invalidated" }), false);
+});
+
 test("verify guard fails without review fields", () => {
   const allowed = canVerifyAuthority(
     {

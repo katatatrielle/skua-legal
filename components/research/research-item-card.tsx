@@ -20,6 +20,24 @@ export function ResearchItemCard({
   onMarkAbandoned,
 }: ResearchItemCardProps) {
   const preview = item.rawText.length > 180 ? `${item.rawText.slice(0, 180)}...` : item.rawText;
+  const sourceLabel =
+    item.sourceUrl && item.sourceType === "link"
+      ? "URL-backed source"
+      : item.sourceType === "case_citation"
+        ? "Citation-only candidate"
+        : item.sourceType === "snippet"
+          ? "Source text / excerpt"
+          : item.sourceType === "note"
+            ? "Research note"
+            : "Proposition";
+  const actionLabel =
+    item.sourceType === "case_citation"
+      ? "needs source"
+      : item.status === "processed"
+        ? "reviewed"
+        : item.sourceType === "snippet" || item.sourceType === "link"
+          ? "ready for intake"
+          : "raw";
 
   return (
     <article
@@ -30,13 +48,26 @@ export function ResearchItemCard({
         <div className="flex items-center gap-2">
           <span className="text-xs uppercase border rounded px-1.5 py-0.5">{item.sourceType}</span>
           <span className="text-xs border rounded px-1.5 py-0.5">{item.status}</span>
+          <span className="text-xs border rounded px-1.5 py-0.5">{actionLabel}</span>
         </div>
         <span className="text-xs opacity-70">
           {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
 
+      <p className="mt-2 text-xs font-medium uppercase tracking-wide opacity-60">{sourceLabel}</p>
       <p className="text-sm mt-2 whitespace-pre-wrap">{preview}</p>
+      {item.sourceUrl && (
+        <a
+          href={item.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex text-xs text-slate-700 underline underline-offset-2"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {item.sourceUrl}
+        </a>
+      )}
 
       {item.candidateAuthorityNames.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">

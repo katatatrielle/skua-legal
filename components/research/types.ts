@@ -6,6 +6,7 @@ export interface ResearchItem {
   matterId: string;
   rawText: string;
   sourceType: SourceType;
+  sourceUrl?: string | null;
   notes?: string | null;
   status: ResearchItemStatus;
   candidateAuthorityNames: string[];
@@ -17,6 +18,7 @@ export interface Authority {
   id: string;
   matterId: string;
   citedName: string;
+  preferredSourceResearchItemId?: string | null;
   status: "candidate" | "eligible" | "blocked" | "invalidated";
   verificationStatus:
     | "not_started"

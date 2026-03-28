@@ -23,8 +23,9 @@ export async function POST(
   try {
     const { matterId } = await context.params;
     const body = await readJson<{
-      rawText: string;
+      rawText?: string;
       sourceType: "case_citation" | "snippet" | "note" | "link" | "proposition";
+      sourceUrl?: string;
       notes?: string;
       runExtraction?: boolean;
     }>(request);

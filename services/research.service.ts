@@ -9,6 +9,7 @@ function mapResearchItem(item: JsonRecord): ResearchItem {
     matterId: String(item.matterId),
     rawText: String(item.rawText),
     sourceType: item.sourceType as SourceType,
+    sourceUrl: typeof item.sourceUrl === "string" ? item.sourceUrl : null,
     notes: (item.notes as string | null | undefined) ?? null,
     status: item.status as ResearchItemStatus,
     candidateAuthorityNames: Array.isArray(item.candidateAuthorityNames)
@@ -34,8 +35,9 @@ export async function listResearchItemsForMatter(
 
 export async function createResearchItem(input: {
   matterId: string;
-  rawText: string;
+  rawText?: string;
   sourceType: SourceType;
+  sourceUrl?: string;
   notes?: string;
 }): Promise<ResearchItem> {
   const res = await fetch(`/api/matters/${input.matterId}/research-items`, {

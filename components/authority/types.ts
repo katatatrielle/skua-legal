@@ -51,6 +51,7 @@ export interface LinkedResearchItem {
     id: string;
     rawText: string;
     sourceType: string;
+    sourceUrl: string | null;
     notes: string | null;
     status: string;
     candidateAuthorityNames: string[];
@@ -80,6 +81,7 @@ export interface AuthorityReviewRecord {
   court: string | null;
   date: string | null;
   sourceDatabase: string | null;
+  preferredSourceResearchItemId: string | null;
   existenceStatus: ExistenceStatus;
   retrievalStatus: RetrievalStatus;
   pinpointType: PinpointType;
@@ -94,5 +96,6 @@ export interface AuthorityReviewRecord {
   createdAt: string;
   updatedAt: string;
   researchItemLinks: LinkedResearchItem[];
+  preferredSourceResearchItem: LinkedResearchItem["researchItem"] | null;
   defects: DefectRecord[];
 }
