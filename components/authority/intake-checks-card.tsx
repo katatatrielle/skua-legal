@@ -35,7 +35,7 @@ export function IntakeChecksCard({
       <div>
         <h2 className="text-sm font-semibold text-slate-900">Intake Checks</h2>
         <p className="mt-1 text-xs text-slate-500">
-          Confirm existence, retrieval, locator coverage, and initial source excerpt.
+          Confirm existence, retrieval, locator coverage, and initial source excerpt. Leave the fields blank to use the selected preferred source.
         </p>
       </div>
 

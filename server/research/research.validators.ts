@@ -11,8 +11,9 @@ const ITEM_STATUSES: ResearchItemStatus[] = ["new", "processed", "abandoned"];
 
 export type CreateResearchItemInput = {
   matterId: string;
-  rawText: string;
+  rawText?: string;
   sourceType: ResearchSourceType;
+  sourceUrl?: string;
   notes?: string;
   runExtraction?: boolean;
 };
@@ -21,6 +22,7 @@ export type UpdateResearchItemInput = {
   researchItemId: string;
   rawText?: string;
   sourceType?: ResearchSourceType;
+  sourceUrl?: string | null;
   notes?: string;
   runExtractionOnTextChange?: boolean;
 };
@@ -44,9 +46,14 @@ function assertNonEmptyString(value: unknown, field: string): asserts value is s
 
 export function validateCreateResearchItemInput(input: CreateResearchItemInput): CreateResearchItemInput {
   assertNonEmptyString(input.matterId, "matterId");
-  assertNonEmptyString(input.rawText, "rawText");
   if (!SOURCE_TYPES.includes(input.sourceType)) {
     throw new Error("sourceType is invalid");
+  }
+  if ((input.rawText?.trim().length ?? 0) === 0 && (input.sourceUrl?.trim().length ?? 0) === 0) {
+    throw new Error("rawText or sourceUrl is required");
+  }
+  if (input.sourceUrl !== undefined && typeof input.sourceUrl !== "string") {
+    throw new Error("sourceUrl must be a string");
   }
 
   if (input.notes !== undefined && typeof input.notes !== "string") {
@@ -55,7 +62,8 @@ export function validateCreateResearchItemInput(input: CreateResearchItemInput):
 
   return {
     ...input,
-    rawText: input.rawText.trim(),
+    rawText: input.rawText?.trim(),
+    sourceUrl: input.sourceUrl?.trim(),
     notes: input.notes?.trim(),
   };
 }
@@ -69,6 +77,9 @@ export function validateUpdateResearchItemInput(input: UpdateResearchItemInput):
   if (input.sourceType !== undefined && !SOURCE_TYPES.includes(input.sourceType)) {
     throw new Error("sourceType is invalid");
   }
+  if (input.sourceUrl !== undefined && input.sourceUrl !== null && typeof input.sourceUrl !== "string") {
+    throw new Error("sourceUrl must be a string");
+  }
   if (input.notes !== undefined && typeof input.notes !== "string") {
     throw new Error("notes must be a string");
   }
@@ -76,6 +87,7 @@ export function validateUpdateResearchItemInput(input: UpdateResearchItemInput):
   return {
     ...input,
     rawText: input.rawText?.trim(),
+    sourceUrl: input.sourceUrl === null ? null : input.sourceUrl?.trim(),
     notes: input.notes?.trim(),
   };
 }

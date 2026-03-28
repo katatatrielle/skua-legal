@@ -17,11 +17,13 @@ import { canRunIntake, canRunProvenanceReview, canVerifyAuthority } from "../sha
 import type { ProvenanceReviewResult } from "./authority.types.ts";
 import { runDeterministicIntake } from "./intake.service.ts";
 import { mapProvenanceResultToDefect, runProvenanceFitReview } from "./verification.service.ts";
+import { isPlaceholderSourceText } from "../research/source-retrieval.service.ts";
 import type {
   ListAuthoritiesForMatterInput,
   RunAuthorityIntakeChecksInput,
   RunAuthorityProvenanceReviewInput,
   SetAuthorityDecisionInput,
+  SetAuthorityPreferredSourceInput,
 } from "./authority.validators.ts";
 import type { CreateAuthorityDefectInput } from "./authority.types.ts";
 import {
@@ -30,6 +32,7 @@ import {
   validateRunAuthorityIntakeChecksInput,
   validateRunAuthorityProvenanceReviewInput,
   validateSetAuthorityDecisionInput,
+  validateSetAuthorityPreferredSourceInput,
 } from "./authority.validators.ts";
 
 const AUTHORITY_STATUS_TRANSITIONS: Record<Authority["status"], readonly Authority["status"][]> = {
@@ -118,6 +121,7 @@ export async function getAuthorityForReview(authorityId: string) {
   const authority = await db.authority.findUnique({
     where: { id: trimmed },
     include: {
+      preferredSourceResearchItem: true,
       researchItemLinks: {
         include: {
           researchItem: true,
@@ -135,16 +139,41 @@ export async function getAuthorityForReview(authorityId: string) {
   return authority;
 }
 
+function resolvePreferredSourceInput(authority: Awaited<ReturnType<typeof getAuthorityForReview>>, validated: {
+  providedSourceText?: string;
+  providedLocator?: string;
+}) {
+  if (validated.providedSourceText || validated.providedLocator) {
+    return validated;
+  }
+
+  const preferred = authority.preferredSourceResearchItem;
+  if (!preferred) {
+    return validated;
+  }
+
+  const preferredText = preferred.rawText?.trim();
+  const providedSourceText =
+    preferredText && !isPlaceholderSourceText(preferredText) ? preferredText : undefined;
+
+  return {
+    providedSourceText,
+    providedLocator: preferred.sourceUrl ? `url:${preferred.sourceUrl}` : undefined,
+  };
+}
+
 export async function runAuthorityIntakeChecks(input: RunAuthorityIntakeChecksInput) {
   const validated = validateRunAuthorityIntakeChecksInput(input);
-  const authority = await requireAuthority(db, validated.authorityId);
+  const authority = await getAuthorityForReview(validated.authorityId);
   if (!canRunIntake(authority)) throw new IntakeNotAllowedError(validated.authorityId);
+
+  const resolvedInput = resolvePreferredSourceInput(authority, validated);
 
   const intake = await runDeterministicIntake({
     citedName: authority.citedName,
     normalizedName: authority.normalizedName,
-    providedSourceText: validated.providedSourceText,
-    providedLocator: validated.providedLocator,
+    providedSourceText: resolvedInput.providedSourceText,
+    providedLocator: resolvedInput.providedLocator,
   });
 
   const result = await db.$transaction(async (tx) => {
@@ -250,6 +279,57 @@ export async function runAuthorityProvenanceReview(input: RunAuthorityProvenance
   });
 
   return { authority: result.authority, reviewResult: review, defects: result.defects };
+}
+
+export async function setAuthorityPreferredSource(input: SetAuthorityPreferredSourceInput) {
+  const validated = validateSetAuthorityPreferredSourceInput(input);
+  const authority = await getAuthorityForReview(validated.authorityId);
+
+  if (!validated.researchItemId) {
+    return db.authority.update({
+      where: { id: authority.id },
+      data: { preferredSourceResearchItemId: null },
+      include: {
+        preferredSourceResearchItem: true,
+        researchItemLinks: { include: { researchItem: true } },
+        defects: { orderBy: [{ status: "asc" }, { createdAt: "desc" }] },
+      },
+    });
+  }
+
+  const researchItemId = validated.researchItemId;
+
+  const researchItem = await db.researchItem.findUnique({
+    where: { id: researchItemId },
+    select: { id: true, matterId: true },
+  });
+
+  if (!researchItem || researchItem.matterId !== authority.matterId) {
+    throw new InvalidAuthorityStateError("Preferred source must belong to the same matter as the authority");
+  }
+
+  return db.$transaction(async (tx) => {
+  const linkedResearchItem = authority.researchItemLinks.find((link) => link.researchItemId === researchItemId);
+
+    if (!linkedResearchItem) {
+      await tx.authorityResearchItem.create({
+        data: {
+          authorityId: authority.id,
+          researchItemId,
+        },
+      });
+    }
+
+    return tx.authority.update({
+      where: { id: authority.id },
+      data: { preferredSourceResearchItemId: researchItemId },
+      include: {
+        preferredSourceResearchItem: true,
+        researchItemLinks: { include: { researchItem: true } },
+        defects: { orderBy: [{ status: "asc" }, { createdAt: "desc" }] },
+      },
+    });
+  });
 }
 
 function mapDecisionToState(decision: SetAuthorityDecisionInput["decision"]) {

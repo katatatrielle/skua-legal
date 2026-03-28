@@ -10,6 +10,7 @@ export async function PATCH(
     const body = await readJson<{
       rawText?: string;
       sourceType?: "case_citation" | "snippet" | "note" | "link" | "proposition";
+      sourceUrl?: string | null;
       notes?: string;
       runExtractionOnTextChange?: boolean;
       status?: "new" | "processed" | "abandoned";

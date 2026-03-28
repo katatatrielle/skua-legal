@@ -1,4 +1,5 @@
 import type { IntakeResult } from "./authority.types.ts";
+import { retrieveSourceFromUrl } from "../research/source-retrieval.service.ts";
 
 const MAX_EXCERPT_LENGTH = 1600;
 
@@ -61,6 +62,10 @@ export function extractExcerpt(text: string): { excerptText?: string; excerptLoc
 async function fetchLocatorText(locator: string): Promise<string | null> {
   if (locator.startsWith("text:")) return locator.slice(5).trim() || null;
   if (locator.startsWith("missing:")) return "__AUTHORITY_NOT_FOUND__";
+  if (locator.startsWith("url:")) {
+    const retrieved = await retrieveSourceFromUrl(locator.slice(4).trim());
+    return retrieved.ok ? retrieved.rawText : null;
+  }
   return null;
 }
 

@@ -23,6 +23,13 @@ interface AuthorityReviewPanelProps {
     decision: "verified" | "verified_with_warning" | "blocked" | "invalidated";
     userNote?: string;
   }) => Promise<void>;
+  onSetPreferredSource: (input: { authorityId: string; researchItemId?: string | null }) => Promise<void>;
+  onAddSourceItem: (input: {
+    authorityId: string;
+    rawText?: string;
+    sourceUrl?: string;
+    notes?: string;
+  }) => Promise<void>;
   isMutating?: boolean;
   isLoading?: boolean;
   error?: string | null;
@@ -54,14 +61,22 @@ export function AuthorityReviewPanel({
   onRunIntake,
   onRunReview,
   onSetDecision,
+  onSetPreferredSource,
+  onAddSourceItem,
   isMutating = false,
   isLoading = false,
   error = null,
 }: AuthorityReviewPanelProps) {
   const [propositionUnderReview, setPropositionUnderReview] = useState("");
+  const [newSourceText, setNewSourceText] = useState("");
+  const [newSourceUrl, setNewSourceUrl] = useState("");
+  const [newSourceNotes, setNewSourceNotes] = useState("");
 
   useEffect(() => {
     setPropositionUnderReview(authority?.propositionUnderReview ?? "");
+    setNewSourceText("");
+    setNewSourceUrl("");
+    setNewSourceNotes("");
   }, [authority?.id, authority?.propositionUnderReview]);
 
   if (isLoading) {
@@ -114,8 +129,21 @@ export function AuthorityReviewPanel({
       <section className="border rounded-lg bg-white p-4 space-y-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Linked Research</h2>
-          <p className="mt-1 text-xs text-slate-500">Research snippets feeding this authority record.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Choose the preferred source text for intake, or add a new excerpt or URL-backed source.
+          </p>
         </div>
+
+        {authority.preferredSourceResearchItem ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            Preferred source: {authority.preferredSourceResearchItem.sourceType}
+            {authority.preferredSourceResearchItem.sourceUrl ? ` from ${authority.preferredSourceResearchItem.sourceUrl}` : ""}
+          </div>
+        ) : (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            No preferred source selected yet. Citation-only intake will stay blocked until you choose or add usable source text.
+          </div>
+        )}
 
         {authority.researchItemLinks.length === 0 && (
           <p className="text-sm text-slate-500">No linked research items found.</p>
@@ -123,14 +151,84 @@ export function AuthorityReviewPanel({
 
         {authority.researchItemLinks.map((link) => (
           <article key={link.id} className="rounded-md border p-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="rounded border px-2 py-1">{link.researchItem.sourceType}</span>
-              <span className="rounded border px-2 py-1">{link.researchItem.status}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className="rounded border px-2 py-1">{link.researchItem.sourceType}</span>
+                <span className="rounded border px-2 py-1">{link.researchItem.status}</span>
+                {authority.preferredSourceResearchItemId === link.researchItemId && (
+                  <span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-800">
+                    preferred source
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={isMutating}
+                className="rounded-md border px-2 py-1 text-xs font-medium text-slate-900 disabled:opacity-50"
+                onClick={() => onSetPreferredSource({ authorityId: authority.id, researchItemId: link.researchItemId })}
+              >
+                {authority.preferredSourceResearchItemId === link.researchItemId ? "Selected" : "Use for intake"}
+              </button>
             </div>
             <p className="mt-3 whitespace-pre-wrap text-sm text-slate-800">{link.researchItem.rawText}</p>
             {link.researchItem.notes && <p className="mt-2 text-xs text-slate-500">{link.researchItem.notes}</p>}
+            {link.researchItem.sourceUrl && (
+              <a
+                href={link.researchItem.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-xs text-slate-700 underline underline-offset-2"
+              >
+                {link.researchItem.sourceUrl}
+              </a>
+            )}
           </article>
         ))}
+
+        <div className="rounded-md border bg-slate-50 p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Add source</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Paste source text, a source URL, or both. The new item will be linked and selected for intake.
+            </p>
+          </div>
+          <textarea
+            value={newSourceText}
+            onChange={(event) => setNewSourceText(event.target.value)}
+            rows={4}
+            className="w-full rounded-md border px-3 py-2 text-sm"
+            placeholder="Paste source excerpt or judgment text"
+          />
+          <input
+            value={newSourceUrl}
+            onChange={(event) => setNewSourceUrl(event.target.value)}
+            className="w-full rounded-md border px-3 py-2 text-sm"
+            placeholder="Optional source URL"
+          />
+          <input
+            value={newSourceNotes}
+            onChange={(event) => setNewSourceNotes(event.target.value)}
+            className="w-full rounded-md border px-3 py-2 text-sm"
+            placeholder="Optional source notes"
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={isMutating || (!newSourceText.trim() && !newSourceUrl.trim())}
+              className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900 disabled:opacity-50"
+              onClick={() =>
+                onAddSourceItem({
+                  authorityId: authority.id,
+                  rawText: newSourceText.trim() || undefined,
+                  sourceUrl: newSourceUrl.trim() || undefined,
+                  notes: newSourceNotes.trim() || undefined,
+                })
+              }
+            >
+              Add source and select
+            </button>
+          </div>
+        </div>
       </section>
 
       <IntakeChecksCard authority={authority} onRunIntake={onRunIntake} isMutating={isMutating} />

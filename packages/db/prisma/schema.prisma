@@ -207,6 +207,7 @@ model ResearchItem {
   matterId                String             @map("matter_id")
   rawText                 String             @map("raw_text")
   sourceType              ResearchSourceType @map("source_type")
+  sourceUrl               String?            @map("source_url")
   candidateAuthorityNames Json?              @map("candidate_authority_names")
   notes                   String?
   status                  ResearchItemStatus @default(new)
@@ -214,6 +215,7 @@ model ResearchItem {
   updatedAt               DateTime           @updatedAt @map("updated_at")
   matter                  Matter             @relation(fields: [matterId], references: [id], onDelete: Cascade)
   authorityLinks          AuthorityResearchItem[]
+  preferredForAuthorities Authority[]        @relation("PreferredAuthoritySource")
 
   @@index([matterId])
   @@index([matterId, status])
@@ -224,6 +226,7 @@ model ResearchItem {
 model Authority {
   id                      String                @id @default(cuid())
   matterId                String                @map("matter_id")
+  preferredSourceResearchItemId String?         @map("preferred_source_research_item_id")
   authorityType           AuthorityType         @default(case_law) @map("authority_type")
   citedName               String                @map("cited_name")
   normalizedName          String?               @map("normalized_name")
@@ -245,6 +248,7 @@ model Authority {
   createdAt               DateTime              @default(now()) @map("created_at")
   updatedAt               DateTime              @updatedAt @map("updated_at")
   matter                  Matter                @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  preferredSourceResearchItem ResearchItem?     @relation("PreferredAuthoritySource", fields: [preferredSourceResearchItemId], references: [id], onDelete: SetNull)
   claimSupportLinks       ClaimSupportLink[]
   defects                 Defect[]
   outlineNodeLinks        OutlineNodeAuthority[]
@@ -256,6 +260,7 @@ model Authority {
   @@index([matterId, status])
   @@index([matterId, verificationStatus])
   @@index([matterId, updatedAt])
+  @@index([preferredSourceResearchItemId])
   @@map("authorities")
 }
 

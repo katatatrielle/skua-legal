@@ -2,6 +2,10 @@ import type { ResearchItemStatus } from "@prisma/client";
 import { db } from "../../lib/db.ts";
 import { extractCandidateAuthorityNames } from "../../lib/parsing/authority-extraction.ts";
 import { normalizeCitation } from "../../lib/parsing/citation-normalization.ts";
+import {
+  buildSourcePlaceholder,
+  retrieveSourceFromUrl,
+} from "./source-retrieval.service.ts";
 import type {
   CreateAuthorityFromResearchItemInput,
   CreateResearchItemInput,
@@ -26,20 +30,48 @@ function canTransition<T extends string>(map: Record<T, readonly T[]>, from: T, 
   return map[from].includes(to);
 }
 
+function normalizeCandidateAuthorityNames(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function mergeNotes(...parts: Array<string | undefined>) {
+  return parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .join("\n\n");
+}
+
 export async function createResearchItem(input: CreateResearchItemInput) {
   const validated = validateCreateResearchItemInput(input);
   await ensureMatterExists(db, validated.matterId);
 
+  let rawText = validated.rawText ?? "";
+  let sourceUrl = validated.sourceUrl;
+  let notes = validated.notes;
+
+  if (sourceUrl) {
+    const retrieval = await retrieveSourceFromUrl(sourceUrl);
+    sourceUrl = retrieval.sourceUrl;
+    if (retrieval.ok) {
+      rawText = retrieval.rawText;
+      notes = mergeNotes(notes, `Retrieved from ${retrieval.sourceDatabase.toUpperCase()} at ${retrieval.sourceUrl}`);
+    } else {
+      rawText = rawText || buildSourcePlaceholder(sourceUrl);
+      notes = mergeNotes(notes, `Source retrieval pending: ${retrieval.reason}`);
+    }
+  }
+
   const candidateAuthorityNames = validated.runExtraction !== false
-    ? extractCandidateAuthorityNames(validated.rawText)
+    ? extractCandidateAuthorityNames(rawText)
     : [];
 
   return db.researchItem.create({
     data: {
       matterId: validated.matterId,
-      rawText: validated.rawText,
+      rawText,
       sourceType: validated.sourceType,
-      notes: validated.notes,
+      sourceUrl,
+      notes: notes || null,
       status: "new",
       candidateAuthorityNames,
     },
@@ -56,6 +88,7 @@ export async function listResearchItemsForMatter(matterId: string, status?: Rese
       matterId: true,
       sourceType: true,
       rawText: true,
+      sourceUrl: true,
       notes: true,
       status: true,
       candidateAuthorityNames: true,
@@ -75,13 +108,17 @@ export async function updateResearchItem(input: UpdateResearchItemInput) {
   const shouldExtract = Boolean(validated.rawText && validated.runExtractionOnTextChange);
   const candidateAuthorityNames = shouldExtract
     ? extractCandidateAuthorityNames(rawText)
-    : existing.candidateAuthorityNames;
+    : normalizeCandidateAuthorityNames(existing.candidateAuthorityNames);
 
   return db.researchItem.update({
     where: { id: existing.id },
     data: {
       rawText,
       sourceType: validated.sourceType ?? existing.sourceType,
+      sourceUrl:
+        validated.sourceUrl === undefined
+          ? existing.sourceUrl
+          : validated.sourceUrl,
       notes: validated.notes ?? existing.notes,
       candidateAuthorityNames,
     },
@@ -136,6 +173,7 @@ export async function createAuthorityFromResearchItem(input: CreateAuthorityFrom
     const authority = await tx.authority.create({
       data: {
         matterId: validated.matterId,
+        preferredSourceResearchItemId: researchItem.id,
         citedName: normalizeCitation(validated.selectedCandidateAuthority),
         normalizedName: normalizeCitation(validated.selectedCandidateAuthority),
         status: "candidate",
@@ -181,6 +219,7 @@ export async function mergeResearchItemsIntoAuthority(
         matterId,
         citedName: normalizeCitation(citedName),
         normalizedName: normalizeCitation(citedName),
+        preferredSourceResearchItemId: items[0]?.id,
         status: "candidate",
         verificationStatus: "not_started",
         existenceStatus: "ambiguous",

@@ -50,6 +50,7 @@ function mapReviewRecord(item: JsonRecord): AuthorityReviewRecord {
     court: toStringOrNull(item.court),
     date: toStringOrNull(item.date),
     sourceDatabase: toStringOrNull(item.sourceDatabase),
+    preferredSourceResearchItemId: toStringOrNull(item.preferredSourceResearchItemId),
     existenceStatus: item.existenceStatus as AuthorityReviewRecord["existenceStatus"],
     retrievalStatus: item.retrievalStatus as AuthorityReviewRecord["retrievalStatus"],
     pinpointType: item.pinpointType as AuthorityReviewRecord["pinpointType"],
@@ -72,6 +73,7 @@ function mapReviewRecord(item: JsonRecord): AuthorityReviewRecord {
             id: String(((link as JsonRecord).researchItem as JsonRecord).id),
             rawText: String(((link as JsonRecord).researchItem as JsonRecord).rawText),
             sourceType: String(((link as JsonRecord).researchItem as JsonRecord).sourceType),
+            sourceUrl: toStringOrNull(((link as JsonRecord).researchItem as JsonRecord).sourceUrl),
             notes: toStringOrNull(((link as JsonRecord).researchItem as JsonRecord).notes),
             status: String(((link as JsonRecord).researchItem as JsonRecord).status),
             candidateAuthorityNames: Array.isArray(
@@ -86,6 +88,26 @@ function mapReviewRecord(item: JsonRecord): AuthorityReviewRecord {
           },
         }))
       : [],
+    preferredSourceResearchItem:
+      item.preferredSourceResearchItem && typeof item.preferredSourceResearchItem === "object"
+        ? {
+            id: String((item.preferredSourceResearchItem as JsonRecord).id),
+            rawText: String((item.preferredSourceResearchItem as JsonRecord).rawText),
+            sourceType: String((item.preferredSourceResearchItem as JsonRecord).sourceType),
+            sourceUrl: toStringOrNull((item.preferredSourceResearchItem as JsonRecord).sourceUrl),
+            notes: toStringOrNull((item.preferredSourceResearchItem as JsonRecord).notes),
+            status: String((item.preferredSourceResearchItem as JsonRecord).status),
+            candidateAuthorityNames: Array.isArray(
+              (item.preferredSourceResearchItem as JsonRecord).candidateAuthorityNames
+            )
+              ? (((item.preferredSourceResearchItem as JsonRecord).candidateAuthorityNames as unknown[]) || []).map(
+                  String
+                )
+              : [],
+            createdAt: String((item.preferredSourceResearchItem as JsonRecord).createdAt),
+            updatedAt: String((item.preferredSourceResearchItem as JsonRecord).updatedAt),
+          }
+        : null,
     defects: Array.isArray(item.defects) ? item.defects.map((defect) => mapDefect(defect as JsonRecord)) : [],
   };
 }
@@ -160,6 +182,19 @@ export async function setAuthorityDecision(input: {
   await expectOk(res, "Failed to record decision");
   const data = (await res.json()) as { authority: JsonRecord };
   return mapReviewRecord(data.authority);
+}
+
+export async function setAuthorityPreferredSource(input: {
+  authorityId: string;
+  researchItemId?: string | null;
+}): Promise<AuthorityReviewRecord> {
+  const res = await fetch(`/api/authorities/${input.authorityId}/source`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ researchItemId: input.researchItemId ?? null }),
+  });
+  await expectOk(res, "Failed to update preferred source");
+  return mapReviewRecord((await res.json()) as JsonRecord);
 }
 
 export async function listAuthorityDefects(authorityId: string): Promise<DefectRecord[]> {

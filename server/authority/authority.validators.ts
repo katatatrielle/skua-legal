@@ -5,6 +5,7 @@ import type {
   CreateAuthorityDefectInput,
   IntakeInput,
   ProvenanceReviewInput,
+  UpdateAuthorityPreferredSourceInput,
 } from "./authority.types.ts";
 
 const AUTHORITY_STATUSES: AuthorityStatus[] = ["candidate", "eligible", "blocked", "invalidated"];
@@ -35,6 +36,8 @@ export type SetAuthorityDecisionInput = {
   decision: AuthorityDecision;
   userNote?: string;
 };
+
+export type SetAuthorityPreferredSourceInput = UpdateAuthorityPreferredSourceInput;
 
 function assertNonEmptyString(value: unknown, field: string): asserts value is string {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -85,6 +88,22 @@ export function validateSetAuthorityDecisionInput(input: SetAuthorityDecisionInp
   return {
     ...input,
     userNote: input.userNote?.trim(),
+  };
+}
+
+export function validateSetAuthorityPreferredSourceInput(input: SetAuthorityPreferredSourceInput) {
+  assertNonEmptyString(input.authorityId, "authorityId");
+  if (
+    input.researchItemId !== undefined &&
+    input.researchItemId !== null &&
+    (typeof input.researchItemId !== "string" || input.researchItemId.trim().length === 0)
+  ) {
+    throw new Error("researchItemId must be a non-empty string when provided");
+  }
+
+  return {
+    authorityId: input.authorityId.trim(),
+    researchItemId: input.researchItemId == null ? null : input.researchItemId.trim(),
   };
 }
 

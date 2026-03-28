@@ -37,6 +37,7 @@ export type ProvenanceReviewResult = {
 
 export type AuthorityWithReviewContext = Prisma.AuthorityGetPayload<{
   include: {
+    preferredSourceResearchItem: true;
     researchItemLinks: {
       include: {
         researchItem: true;
