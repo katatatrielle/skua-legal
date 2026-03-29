@@ -60,6 +60,7 @@ export function VerificationActions({
             type="button"
             disabled={isMutating}
             className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid={`decision-${decision.value}`}
             onClick={() =>
               onSetDecision({
                 authorityId: authority.id,

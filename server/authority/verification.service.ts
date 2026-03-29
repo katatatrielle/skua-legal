@@ -1,6 +1,8 @@
 import type { Authority } from "@prisma/client";
 import {
   runProvenanceModel,
+  runProvenanceModelWithTelemetry,
+  type ModelExecution,
   type ProvenanceModelResponse,
   type ProvenancePromptPayload,
 } from "../shared/model-client.ts";
@@ -41,6 +43,18 @@ export async function runProvenanceFitReview(params: {
   const payload = buildProvenancePromptPayload(params);
   const modelResult = await runProvenanceModel(payload);
   return parseModelResult(modelResult);
+}
+
+export async function runProvenanceFitReviewWithTelemetry(params: {
+  authority: Authority;
+  propositionUnderReview: string;
+}): Promise<ModelExecution<ProvenanceReviewResult>> {
+  const payload = buildProvenancePromptPayload(params);
+  const modelResult = await runProvenanceModelWithTelemetry(payload);
+  return {
+    output: parseModelResult(modelResult.output),
+    usage: modelResult.usage,
+  };
 }
 
 export function mapProvenanceResultToDefect(

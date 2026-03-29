@@ -19,12 +19,13 @@ export async function readJson<T>(request: Request): Promise<T> {
 export function toErrorResponse(error: unknown): Response {
   if (error instanceof DomainError) {
     const status =
-      error.code === "MATTER_NOT_FOUND" || error.code === "AUTHORITY_NOT_FOUND"
+      error.code === "MATTER_NOT_FOUND" || error.code === "AUTHORITY_NOT_FOUND" || error.code === "DEFECT_NOT_FOUND"
         ? 404
         : error.code === "INVALID_AUTHORITY_STATE" ||
             error.code === "INTAKE_NOT_ALLOWED" ||
             error.code === "PROVENANCE_REVIEW_NOT_ALLOWED" ||
-            error.code === "AUTHORITY_DECISION_NOT_ALLOWED"
+            error.code === "AUTHORITY_DECISION_NOT_ALLOWED" ||
+            error.code === "RESTART_NOT_ALLOWED"
           ? 409
           : 400;
 

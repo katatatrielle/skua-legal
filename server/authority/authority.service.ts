@@ -16,8 +16,10 @@ import {
 import { canRunIntake, canRunProvenanceReview, canVerifyAuthority } from "../shared/guards.ts";
 import type { ProvenanceReviewResult } from "./authority.types.ts";
 import { runDeterministicIntake } from "./intake.service.ts";
-import { mapProvenanceResultToDefect, runProvenanceFitReview } from "./verification.service.ts";
+import { mapProvenanceResultToDefect, runProvenanceFitReviewWithTelemetry } from "./verification.service.ts";
 import { isPlaceholderSourceText } from "../research/source-retrieval.service.ts";
+import { propagateAuthorityTaint } from "../restart/restart.service.ts";
+import { createCheckpoint, recordMatterEvent, recordModelRun } from "../usage/usage.service.ts";
 import type {
   ListAuthoritiesForMatterInput,
   RunAuthorityIntakeChecksInput,
@@ -219,6 +221,23 @@ export async function runAuthorityIntakeChecks(input: RunAuthorityIntakeChecksIn
       }, tx);
     }
 
+    await recordMatterEvent(
+      {
+        matterId: authority.matterId,
+        eventType: "authority_intake_completed",
+        stage: "research",
+        entityType: "authority",
+        entityId: authority.id,
+        summary: `Completed intake for ${authority.citedName} with ${nextVerificationStatus} status.`,
+        metadata: {
+          existenceStatus: intake.existenceStatus,
+          retrievalStatus: intake.retrievalStatus,
+          pinpointType: intake.pinpointType,
+        },
+      },
+      tx
+    );
+
     const defects = await tx.defect.findMany({
       where: { authorityId: authority.id },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
@@ -241,10 +260,40 @@ export async function runAuthorityProvenanceReview(input: RunAuthorityProvenance
     throw new ProvenanceReviewNotAllowedError(validated.authorityId);
   }
 
-  const review: ProvenanceReviewResult = await runProvenanceFitReview({
-    authority,
-    propositionUnderReview: validated.propositionUnderReview,
-  });
+  let reviewExecution: Awaited<ReturnType<typeof runProvenanceFitReviewWithTelemetry>>;
+  try {
+    reviewExecution = await runProvenanceFitReviewWithTelemetry({
+      authority,
+      propositionUnderReview: validated.propositionUnderReview,
+    });
+  } catch (error) {
+    const provider =
+      process.env.MODEL_PROVIDER === "openai" || process.env.OPENAI_API_KEY ? "openai" : "heuristic";
+    const model = process.env.OPENAI_PROVENANCE_MODEL ?? "gpt-5";
+    const message = error instanceof Error ? error.message : "Provenance review failed";
+
+    await recordModelRun({
+      matterId: authority.matterId,
+      authorityId: authority.id,
+      stage: "provenance_review",
+      provider,
+      model,
+      reasoningEffort: process.env.OPENAI_REASONING_EFFORT ?? null,
+      status: "failed",
+      errorMessage: message,
+    });
+    await recordMatterEvent({
+      matterId: authority.matterId,
+      eventType: "authority_review_failed",
+      stage: "provenance_fit_review",
+      entityType: "authority",
+      entityId: authority.id,
+      summary: `Provenance review failed for ${authority.citedName}: ${message}`,
+    });
+    throw error;
+  }
+
+  const review: ProvenanceReviewResult = reviewExecution.output;
 
   const result = await db.$transaction(async (tx) => {
     const updated = await tx.authority.update({
@@ -259,8 +308,9 @@ export async function runAuthorityProvenanceReview(input: RunAuthorityProvenance
     });
 
     const mappedDefect = mapProvenanceResultToDefect(review);
+    let createdDefect = null;
     if (mappedDefect) {
-      await createOrReuseAuthorityDefect({
+      createdDefect = await createOrReuseAuthorityDefect({
         authorityId: authority.id,
         defectType: mappedDefect.defectType,
         severity: mappedDefect.severity,
@@ -269,6 +319,46 @@ export async function runAuthorityProvenanceReview(input: RunAuthorityProvenance
         stageDetected: "provenance_fit_review",
       }, tx);
     }
+
+    await recordModelRun(
+      {
+        matterId: authority.matterId,
+        authorityId: authority.id,
+        stage: "provenance_review",
+        provider: reviewExecution.usage.provider,
+        model: reviewExecution.usage.model,
+        reasoningEffort: reviewExecution.usage.reasoningEffort,
+        status: "succeeded",
+        latencyMs: reviewExecution.usage.latencyMs,
+        requestTokens: reviewExecution.usage.requestTokens,
+        responseTokens: reviewExecution.usage.responseTokens,
+        totalTokens: reviewExecution.usage.totalTokens,
+        estimatedCostUsd: reviewExecution.usage.estimatedCostUsd,
+        metadata: {
+          fallbackUsed: reviewExecution.usage.fallbackUsed,
+          fitStatus: review.fitStatus,
+          riskLevel: review.riskLevel,
+        },
+      },
+      tx
+    );
+
+    await recordMatterEvent(
+      {
+        matterId: authority.matterId,
+        eventType: "authority_review_completed",
+        stage: "provenance_fit_review",
+        entityType: "authority",
+        entityId: authority.id,
+        summary: `Completed provenance review for ${authority.citedName}.`,
+        metadata: {
+          fitStatus: review.fitStatus,
+          riskLevel: review.riskLevel,
+          defectId: createdDefect?.id ?? null,
+        },
+      },
+      tx
+    );
 
     const defects = await tx.defect.findMany({
       where: { authorityId: authority.id },
@@ -286,14 +376,30 @@ export async function setAuthorityPreferredSource(input: SetAuthorityPreferredSo
   const authority = await getAuthorityForReview(validated.authorityId);
 
   if (!validated.researchItemId) {
-    return db.authority.update({
-      where: { id: authority.id },
-      data: { preferredSourceResearchItemId: null },
-      include: {
-        preferredSourceResearchItem: true,
-        researchItemLinks: { include: { researchItem: true } },
-        defects: { orderBy: [{ status: "asc" }, { createdAt: "desc" }] },
-      },
+    return db.$transaction(async (tx) => {
+      const updated = await tx.authority.update({
+        where: { id: authority.id },
+        data: { preferredSourceResearchItemId: null },
+        include: {
+          preferredSourceResearchItem: true,
+          researchItemLinks: { include: { researchItem: true } },
+          defects: { orderBy: [{ status: "asc" }, { createdAt: "desc" }] },
+        },
+      });
+
+      await recordMatterEvent(
+        {
+          matterId: authority.matterId,
+          eventType: "preferred_source_cleared",
+          stage: "research",
+          entityType: "authority",
+          entityId: authority.id,
+          summary: `Cleared preferred source for ${authority.citedName}.`,
+        },
+        tx
+      );
+
+      return updated;
     });
   }
 
@@ -320,7 +426,7 @@ export async function setAuthorityPreferredSource(input: SetAuthorityPreferredSo
       });
     }
 
-    return tx.authority.update({
+    const updated = await tx.authority.update({
       where: { id: authority.id },
       data: { preferredSourceResearchItemId: researchItemId },
       include: {
@@ -329,6 +435,23 @@ export async function setAuthorityPreferredSource(input: SetAuthorityPreferredSo
         defects: { orderBy: [{ status: "asc" }, { createdAt: "desc" }] },
       },
     });
+
+    await recordMatterEvent(
+      {
+        matterId: authority.matterId,
+        eventType: "preferred_source_selected",
+        stage: "research",
+        entityType: "authority",
+        entityId: authority.id,
+        summary: `Selected a preferred intake source for ${authority.citedName}.`,
+        metadata: {
+          researchItemId,
+        },
+      },
+      tx
+    );
+
+    return updated;
   });
 }
 
@@ -390,25 +513,62 @@ export async function setAuthorityDecision(input: SetAuthorityDecisionInput) {
       },
     });
 
+    let decisionDefect = null;
     if (validated.decision === "blocked" || validated.decision === "invalidated") {
       const defectType = validated.decision === "blocked" ? "PROPOSITION_UNSUPPORTED" : "AUTH_INVALIDATED";
-      await createOrReuseAuthorityDefect({
+      decisionDefect = await createOrReuseAuthorityDefect({
         authorityId: authority.id,
         defectType,
         severity: validated.decision === "invalidated" ? "critical" : "major",
         description: validated.userNote || `Authority marked as ${validated.decision}`,
-        restartScopeRecommended: "authority_only",
+        restartScopeRecommended: "section",
         stageDetected: "provenance_fit_review",
       }, tx);
     }
+
+    if (validated.decision === "verified" || validated.decision === "verified_with_warning") {
+      await createCheckpoint(
+        {
+          matterId: authority.matterId,
+          stage: "authority_clean",
+        },
+        tx
+      );
+    }
+
+    await recordMatterEvent(
+      {
+        matterId: authority.matterId,
+        eventType: "authority_decision_recorded",
+        stage: "provenance_fit_review",
+        entityType: "authority",
+        entityId: authority.id,
+        summary: `Authority ${authority.citedName} marked ${validated.decision}.`,
+        metadata: {
+          defectId: decisionDefect?.id ?? null,
+          note: validated.userNote ?? null,
+        },
+      },
+      tx
+    );
 
     const defects = await tx.defect.findMany({
       where: { authorityId: authority.id },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
 
-    return { authority: updated, defects };
+    return { authority: updated, defects, decisionDefect };
   });
+
+  if (result.decisionDefect && (validated.decision === "blocked" || validated.decision === "invalidated")) {
+    await propagateAuthorityTaint({
+      matterId: authority.matterId,
+      authorityId: authority.id,
+      severity: result.decisionDefect.severity,
+      defectId: result.decisionDefect.id,
+      defectType: result.decisionDefect.defectType,
+    });
+  }
 
   return result;
 }

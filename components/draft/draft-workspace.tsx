@@ -5,10 +5,18 @@ import {
   attachAuthorityToOutlineNode,
   createOutlineNode,
   draftSectionFromOutlineNode,
+  getMatterDiagnostics,
+  getMatterRestartState,
   listDraftAuthoritiesForMatter,
   listOutlineNodesForMatter,
+  restartFromDefect,
 } from "../../services/draft.service";
-import type { DraftAuthority, OutlineNodeRecord } from "../../services/draft.service";
+import type {
+  DraftAuthority,
+  MatterDiagnostics,
+  OutlineNodeRecord,
+  RestartState,
+} from "../../services/draft.service";
 
 interface DraftWorkspaceProps {
   matterId: string;
@@ -18,9 +26,19 @@ interface DraftWorkspaceProps {
 
 const NODE_TYPES = ["issue", "rule", "analysis", "counterargument", "conclusion"] as const;
 
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function formatMoney(value: number) {
+  return `$${value.toFixed(4)}`;
+}
+
 export function DraftWorkspace({ matterId, matterTitle, matterDescription }: DraftWorkspaceProps) {
   const [outlineNodes, setOutlineNodes] = useState<OutlineNodeRecord[]>([]);
   const [draftAuthorities, setDraftAuthorities] = useState<DraftAuthority[]>([]);
+  const [diagnostics, setDiagnostics] = useState<MatterDiagnostics | null>(null);
+  const [restartState, setRestartState] = useState<RestartState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [proposition, setProposition] = useState("");
@@ -33,13 +51,19 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
     setIsLoading(true);
     setError(null);
     try {
-      const [nodes, authorities] = await Promise.all([
+      const [nodes, authorities, nextDiagnostics, nextRestartState] = await Promise.all([
         listOutlineNodesForMatter(matterId),
         listDraftAuthoritiesForMatter(matterId),
+        getMatterDiagnostics(matterId),
+        getMatterRestartState(matterId),
       ]);
       setOutlineNodes(nodes);
       setDraftAuthorities(authorities);
-      setSelectedNodeId((current) => current && nodes.some((node) => node.id === current) ? current : nodes[0]?.id ?? null);
+      setDiagnostics(nextDiagnostics);
+      setRestartState(nextRestartState);
+      setSelectedNodeId((current) =>
+        current && nodes.some((node) => node.id === current) ? current : nodes[0]?.id ?? null
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load draft workspace");
     } finally {
@@ -55,6 +79,8 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
     () => outlineNodes.find((node) => node.id === selectedNodeId) ?? null,
     [outlineNodes, selectedNodeId]
   );
+
+  const selectedSection = selectedNode?.draftSections[0] ?? null;
 
   async function runMutation(action: () => Promise<void>) {
     setIsMutating(true);
@@ -88,11 +114,97 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
               </a>
             </div>
           </div>
+
+          {diagnostics && (
+            <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+              <span className="rounded-full border px-3 py-1" data-testid="diagnostics-model-runs">
+                {diagnostics.modelRunCount} model runs
+              </span>
+              <span className="rounded-full border px-3 py-1" data-testid="diagnostics-cost">
+                {formatMoney(diagnostics.totalEstimatedCostUsd)} total cost
+              </span>
+              <span className="rounded-full border px-3 py-1" data-testid="diagnostics-open-defects">
+                {diagnostics.openDefectCount} open defects
+              </span>
+              <span className="rounded-full border px-3 py-1" data-testid="diagnostics-restarts">
+                {diagnostics.restartCount} restarts
+              </span>
+              <span className="rounded-full border px-3 py-1" data-testid="diagnostics-checkpoint">
+                Latest checkpoint: {diagnostics.latestCleanCheckpoint?.stage ?? "none"}
+              </span>
+            </div>
+          )}
         </header>
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-        <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)_340px]">
+        {restartState && restartState.openDefects.length > 0 && (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-amber-950">Restart queue</h2>
+                <p className="mt-1 text-xs text-amber-900">
+                  Open authority defects can taint downstream outline and draft artifacts.
+                </p>
+              </div>
+              <span className="rounded-full border border-amber-300 px-3 py-1 text-xs font-medium text-amber-900">
+                {restartState.openDefects.length} open defects
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {restartState.openDefects.map((defect) => (
+                <article key={defect.id} className="rounded-md border border-amber-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">{defect.defectType}</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {defect.authorityName ?? "Authority"} | {defect.severity} | restart {defect.restartScopeChosen ?? defect.restartScopeRecommended}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {defect.affectedOutlineNodeCount} outline nodes | {defect.affectedDraftSectionCount} draft sections affected
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isMutating || !defect.restartEligible}
+                      className="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      data-testid={`restart-defect-${defect.id}`}
+                      onClick={() =>
+                        runMutation(async () => {
+                          await restartFromDefect({
+                            defectId: defect.id,
+                            chosenScope: (defect.restartScopeChosen ?? defect.restartScopeRecommended) as
+                              | "none"
+                              | "authority_only"
+                              | "proposition"
+                              | "outline_node"
+                              | "section",
+                          });
+                        })
+                      }
+                    >
+                      {defect.restartEligible ? "Restart from recommendation" : "No downstream artifacts"}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-700">{defect.description}</p>
+                  <div className="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-2">
+                    <div className="rounded border bg-slate-50 p-2">
+                      <div className="font-semibold text-slate-700">Preserve</div>
+                      <p className="mt-1">{defect.preserveDiscardSummary.preserve.join(", ")}</p>
+                    </div>
+                    <div className="rounded border bg-slate-50 p-2">
+                      <div className="font-semibold text-slate-700">Discard</div>
+                      <p className="mt-1">{defect.preserveDiscardSummary.discard.join(", ")}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
           <section className="rounded-lg border bg-white p-4 space-y-4">
             <div>
               <h2 className="text-sm font-semibold text-slate-900">Outline nodes</h2>
@@ -151,7 +263,7 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
 
             {isLoading && <p className="text-sm text-slate-500">Loading draft workspace...</p>}
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="outline-node-list">
               {outlineNodes.map((node) => (
                 <button
                   key={node.id}
@@ -161,7 +273,9 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-slate-900">{node.title}</span>
-                    <span className="text-[11px] uppercase tracking-wide text-slate-500">{node.status}</span>
+                    <span className="text-[11px] uppercase tracking-wide text-slate-500">
+                      {node.status} | {node.taintStatus}
+                    </span>
                   </div>
                   <p className="mt-1 line-clamp-3 text-xs text-slate-600">{node.proposition ?? "No proposition recorded yet."}</p>
                   <p className="mt-2 text-xs text-slate-500">
@@ -186,11 +300,18 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
                     type="button"
                     disabled={isMutating}
                     className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900 disabled:opacity-50"
+                    data-testid="draft-section-button"
                     onClick={() => runMutation(async () => { await draftSectionFromOutlineNode(selectedNode.id); })}
                   >
                     Draft section
                   </button>
                 </div>
+
+                {selectedNode.taintStatus !== "clean" && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-testid="node-taint-banner">
+                    This node is {selectedNode.taintStatus}. Resolve or restart from the linked defect queue before trusting the output.
+                  </div>
+                )}
 
                 <div className="rounded-md border bg-slate-50 p-3">
                   <h3 className="text-sm font-semibold text-slate-900">Attached authority set</h3>
@@ -215,11 +336,26 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
 
                 <div className="rounded-md border bg-slate-50 p-3">
                   <h3 className="text-sm font-semibold text-slate-900">Draft output</h3>
-                  {selectedNode.draftSections[0] ? (
+                  {selectedSection ? (
                     <>
-                      <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-800">{selectedNode.draftSections[0].text}</pre>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="rounded-full border px-2 py-1">{selectedSection.status}</span>
+                        <span className="rounded-full border px-2 py-1">{selectedSection.taintStatus}</span>
+                        {selectedSection.checkpointParent && (
+                          <span className="rounded-full border px-2 py-1">checkpoint {selectedSection.checkpointParent}</span>
+                        )}
+                      </div>
+                      {selectedSection.text ? (
+                        <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-800" data-testid="draft-output">
+                          {selectedSection.text}
+                        </pre>
+                      ) : (
+                        <p className="mt-3 text-sm text-slate-500" data-testid="draft-output-empty">
+                          This section was cleared during restart. Attach or verify clean authorities, then draft again.
+                        </p>
+                      )}
                       <p className="mt-3 text-xs text-slate-500">
-                        Updated {new Date(selectedNode.draftSections[0].updatedAt).toLocaleString()}
+                        Updated {new Date(selectedSection.updatedAt).toLocaleString()}
                       </p>
                     </>
                   ) : (
@@ -236,15 +372,17 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
               <p className="mt-1 text-xs text-slate-500">Every drafted section shows the exact authority support used to generate it.</p>
             </div>
 
-            {selectedNode?.draftSections[0]?.claimSupportLinks.length ? (
-              <div className="space-y-3">
-                {selectedNode.draftSections[0].claimSupportLinks.map((link) => (
+            {selectedSection?.claimSupportLinks.length ? (
+              <div className="space-y-3" data-testid="citation-inspector">
+                {selectedSection.claimSupportLinks.map((link) => (
                   <article key={link.id} className="rounded-md border p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-sm font-medium text-slate-900">{link.authority.citedName}</div>
                       <span className="text-xs text-slate-500">{link.status}</span>
                     </div>
-                    <p className="mt-2 text-xs text-slate-600">{link.claimText}</p>
+                    <p className="mt-2 text-xs font-medium text-slate-700">
+                      {link.claimLocation ?? "Claim"}: {link.claimText}
+                    </p>
                     <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{link.excerptText}</p>
                     <p className="mt-2 text-xs text-slate-500">
                       {link.excerptLocation ?? "no locator"} | {link.fitStatus}
@@ -296,6 +434,52 @@ export function DraftWorkspace({ matterId, matterTitle, matterDescription }: Dra
                 ))}
               </div>
             </div>
+
+            {diagnostics && (
+              <div className="rounded-md border bg-slate-50 p-3">
+                <h3 className="text-sm font-semibold text-slate-900">Matter diagnostics</h3>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recent model runs</p>
+                    <div className="mt-2 space-y-2">
+                      {diagnostics.recentModelRuns.length === 0 && (
+                        <p className="text-sm text-slate-500">No model activity yet.</p>
+                      )}
+                      {diagnostics.recentModelRuns.map((run) => (
+                        <div key={run.id} className="rounded-md border bg-white p-3 text-xs text-slate-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-900">{run.stage}</span>
+                            <span>{run.status}</span>
+                          </div>
+                          <p className="mt-1">{run.provider} · {run.model}</p>
+                          <p className="mt-1">
+                            {run.latencyMs ? `${run.latencyMs}ms` : "no latency"} | {run.estimatedCostUsd !== null ? formatMoney(run.estimatedCostUsd) : "cost unavailable"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recent events</p>
+                    <div className="mt-2 space-y-2" data-testid="diagnostics-events">
+                      {diagnostics.recentEvents.length === 0 && (
+                        <p className="text-sm text-slate-500">No event history yet.</p>
+                      )}
+                      {diagnostics.recentEvents.map((event) => (
+                        <div key={event.id} className="rounded-md border bg-white p-3 text-xs text-slate-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-900">{event.eventType}</span>
+                            <span>{formatTimestamp(event.createdAt)}</span>
+                          </div>
+                          <p className="mt-1">{event.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </div>

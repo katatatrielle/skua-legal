@@ -49,8 +49,12 @@ export function validateCreateResearchItemInput(input: CreateResearchItemInput):
   if (!SOURCE_TYPES.includes(input.sourceType)) {
     throw new Error("sourceType is invalid");
   }
-  if ((input.rawText?.trim().length ?? 0) === 0 && (input.sourceUrl?.trim().length ?? 0) === 0) {
-    throw new Error("rawText or sourceUrl is required");
+  if (
+    (input.rawText?.trim().length ?? 0) === 0 &&
+    (input.sourceUrl?.trim().length ?? 0) === 0 &&
+    (input.notes?.trim().length ?? 0) === 0
+  ) {
+    throw new Error("rawText, notes, or sourceUrl is required");
   }
   if (input.sourceUrl !== undefined && typeof input.sourceUrl !== "string") {
     throw new Error("sourceUrl must be a string");

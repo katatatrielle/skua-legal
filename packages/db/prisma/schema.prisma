@@ -198,6 +198,8 @@ model Matter {
   draftSections    DraftSection[]
   defects          Defect[]
   checkpoints      Checkpoint[]
+  modelRuns        ModelRun[]
+  matterEvents     MatterEvent[]
 
   @@map("matters")
 }
@@ -404,4 +406,49 @@ model Checkpoint {
   @@index([matterId])
   @@index([stage, status])
   @@map("checkpoints")
+}
+
+model ModelRun {
+  id               String    @id @default(cuid())
+  matterId         String    @map("matter_id")
+  authorityId      String?   @map("authority_id")
+  outlineNodeId    String?   @map("outline_node_id")
+  draftSectionId   String?   @map("draft_section_id")
+  stage            String
+  provider         String
+  model            String
+  reasoningEffort  String?   @map("reasoning_effort")
+  status           String
+  latencyMs        Int?      @map("latency_ms")
+  requestTokens    Int?      @map("request_tokens")
+  responseTokens   Int?      @map("response_tokens")
+  totalTokens      Int?      @map("total_tokens")
+  estimatedCostUsd Float?    @map("estimated_cost_usd")
+  errorMessage     String?   @map("error_message")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  matter           Matter    @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@index([matterId])
+  @@index([matterId, stage])
+  @@index([matterId, createdAt])
+  @@map("model_runs")
+}
+
+model MatterEvent {
+  id         String   @id @default(cuid())
+  matterId   String   @map("matter_id")
+  eventType  String   @map("event_type")
+  stage      String?
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  summary    String
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  matter     Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@index([matterId])
+  @@index([matterId, eventType])
+  @@index([matterId, createdAt])
+  @@map("matter_events")
 }

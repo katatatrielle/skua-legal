@@ -6,6 +6,7 @@ import {
   buildSourcePlaceholder,
   retrieveSourceFromUrl,
 } from "./source-retrieval.service.ts";
+import { recordMatterEvent } from "../usage/usage.service.ts";
 import type {
   CreateAuthorityFromResearchItemInput,
   CreateResearchItemInput,
@@ -49,6 +50,10 @@ export async function createResearchItem(input: CreateResearchItemInput) {
   let sourceUrl = validated.sourceUrl;
   let notes = validated.notes;
 
+  if (!rawText.trim() && !sourceUrl && validated.sourceType === "note" && notes?.trim()) {
+    rawText = notes.trim();
+  }
+
   if (sourceUrl) {
     const retrieval = await retrieveSourceFromUrl(sourceUrl);
     sourceUrl = retrieval.sourceUrl;
@@ -65,7 +70,7 @@ export async function createResearchItem(input: CreateResearchItemInput) {
     ? extractCandidateAuthorityNames(rawText)
     : [];
 
-  return db.researchItem.create({
+  const item = await db.researchItem.create({
     data: {
       matterId: validated.matterId,
       rawText,
@@ -76,6 +81,21 @@ export async function createResearchItem(input: CreateResearchItemInput) {
       candidateAuthorityNames,
     },
   });
+
+  await recordMatterEvent({
+    matterId: validated.matterId,
+    eventType: "research_item_created",
+    stage: "research",
+    entityType: "research_item",
+    entityId: item.id,
+    summary: `Added ${validated.sourceType} research item to the inbox.`,
+    metadata: {
+      candidateAuthorityCount: candidateAuthorityNames.length,
+      sourceUrl: sourceUrl ?? null,
+    },
+  });
+
+  return item;
 }
 
 export async function listResearchItemsForMatter(matterId: string, status?: ResearchItemStatus) {
@@ -192,6 +212,21 @@ export async function createAuthorityFromResearchItem(input: CreateAuthorityFrom
         data: { status: "processed" },
       });
     }
+
+    await recordMatterEvent(
+      {
+        matterId: validated.matterId,
+        eventType: "authority_created_from_research",
+        stage: "research",
+        entityType: "authority",
+        entityId: authority.id,
+        summary: `Created authority ${authority.citedName} from research item ${researchItem.id}.`,
+        metadata: {
+          researchItemId: researchItem.id,
+        },
+      },
+      tx
+    );
 
     return authority;
   });

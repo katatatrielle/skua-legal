@@ -79,6 +79,7 @@ npm run dev`}
                 onChange={(event) => setTitle(event.target.value)}
                 className="rounded-md border px-3 py-2"
                 placeholder="Duty to accommodate memo"
+                data-testid="matter-title-input"
                 required
               />
             </label>
@@ -115,6 +116,7 @@ npm run dev`}
               type="submit"
               disabled={submitting || !title.trim()}
               className="w-full rounded-md border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              data-testid="create-matter-button"
             >
               {submitting ? "Creating..." : "Create matter"}
             </button>
@@ -139,7 +141,7 @@ npm run dev`}
           ) : (
             <div className="mt-6 space-y-3">
               {matters.map((matter) => (
-                <article key={matter.id} className="rounded-lg border border-slate-200 p-4">
+                <article key={matter.id} className="rounded-lg border border-slate-200 p-4" data-testid={`matter-card-${matter.id}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="text-base font-semibold text-slate-900">{matter.title}</h3>
