@@ -212,6 +212,18 @@ test("creates a research item with extracted candidates", async () => {
   assert.ok(item.candidateAuthorityNames?.includes("2024 ONCA 10"));
 });
 
+test("allows note-only research items by promoting notes into raw text", async () => {
+  const matter = fakeDb.seedMatter();
+  const item = await researchService.createResearchItem({
+    matterId: matter.id,
+    sourceType: "note",
+    notes: "Quick note about Example v. Sample before full source retrieval.",
+  });
+
+  assert.match(item.rawText, /Quick note/);
+  assert.equal(item.sourceType, "note");
+});
+
 test("marks research items processed and abandoned", async () => {
   const matter = fakeDb.seedMatter();
   const item = await researchService.createResearchItem({

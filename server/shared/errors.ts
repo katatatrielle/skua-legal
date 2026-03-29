@@ -43,3 +43,15 @@ export class AuthorityDecisionNotAllowedError extends DomainError {
     super("AUTHORITY_DECISION_NOT_ALLOWED", message);
   }
 }
+
+export class DefectNotFoundError extends DomainError {
+  constructor(defectId: string) {
+    super("DEFECT_NOT_FOUND", `Defect not found: ${defectId}`);
+  }
+}
+
+export class RestartNotAllowedError extends DomainError {
+  constructor(message: string) {
+    super("RESTART_NOT_ALLOWED", message);
+  }
+}

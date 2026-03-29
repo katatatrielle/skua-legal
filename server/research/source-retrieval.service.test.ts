@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildSourcePlaceholder,
   isPlaceholderSourceText,
+  normalizeSourceUrl,
   retrieveSourceFromUrl,
 } from "./source-retrieval.service.ts";
 
@@ -40,4 +41,11 @@ test("placeholder helper marks URL-only source text", () => {
   const placeholder = buildSourcePlaceholder("https://example.com/source");
   assert.equal(isPlaceholderSourceText(placeholder), true);
   assert.equal(isPlaceholderSourceText("actual excerpt text"), false);
+});
+
+test("normalizes source URLs by removing fragments", () => {
+  assert.equal(
+    normalizeSourceUrl("https://example.com/case#para42"),
+    "https://example.com/case"
+  );
 });

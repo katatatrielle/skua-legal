@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: cleanroom-law-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cleanroom_law
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - cleanroom_law_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cleanroom_law"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cleanroom_law_postgres:

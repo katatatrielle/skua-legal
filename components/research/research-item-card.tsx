@@ -43,6 +43,7 @@ export function ResearchItemCard({
     <article
       className={`border rounded p-3 cursor-pointer ${isSelected ? "ring-2" : ""}`}
       onClick={() => onSelect(item.id)}
+      data-testid={`research-item-${item.id}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

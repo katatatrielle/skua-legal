@@ -26,7 +26,7 @@ export function CandidateAuthorityPanel({
   }
 
   return (
-    <section className="border rounded p-4 space-y-4">
+    <section className="border rounded p-4 space-y-4" data-testid="candidate-authority-panel">
       <div>
         <h3 className="text-sm font-semibold">Candidate Authorities</h3>
         <p className="text-xs opacity-70 mt-1">From selected research item</p>
@@ -47,6 +47,7 @@ export function CandidateAuthorityPanel({
               <button
                 type="button"
                 className="text-xs border rounded px-2 py-1"
+                data-testid={`create-review-authority-${i}`}
                 onClick={async () => onCreateAuthorityAndOpenReview(selectedItem.id, name)}
               >
                 Create + Open Review
@@ -77,6 +78,7 @@ export function CandidateAuthorityPanel({
             type="button"
             className="text-xs border rounded px-2 py-1"
             disabled={!customName.trim()}
+            data-testid="manual-create-review-authority"
             onClick={async () => {
               await onCreateAuthorityAndOpenReview(selectedItem.id, customName.trim());
               setCustomName("");

@@ -53,6 +53,7 @@ export function AuthorityReviewQueue({
                 className={`block w-full border-b px-4 py-4 text-left transition ${
                   isSelected ? "bg-slate-50" : "bg-white hover:bg-slate-50/70"
                 }`}
+                data-testid={`authority-queue-item-${item.id}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">

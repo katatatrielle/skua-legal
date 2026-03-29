@@ -249,6 +249,7 @@ export function AuthorityReviewPanel({
             rows={4}
             className="w-full rounded-md border px-3 py-2 text-sm"
             placeholder="What proposition does this authority need to support?"
+            data-testid="proposition-under-review-input"
           />
         </label>
 
@@ -266,6 +267,7 @@ export function AuthorityReviewPanel({
             type="button"
             disabled={isMutating || !propositionUnderReview.trim()}
             className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="run-provenance-review-button"
             onClick={() =>
               onRunReview({
                 authorityId: authority.id,

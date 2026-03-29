@@ -74,6 +74,7 @@ export function ResearchItemForm({ onSubmit }: ResearchItemFormProps) {
         }}
         placeholder="Paste research text, citation, or excerpt here. Leave blank if you're adding a URL-backed source only."
         className="w-full min-h-[120px] border rounded p-2 text-sm"
+        data-testid="research-raw-text-input"
       />
 
       <input
@@ -81,6 +82,7 @@ export function ResearchItemForm({ onSubmit }: ResearchItemFormProps) {
         onChange={(e) => setSourceUrl(e.target.value)}
         placeholder="Optional source URL, e.g. a CanLII decision link"
         className="w-full border rounded p-2 text-sm"
+        data-testid="research-source-url-input"
       />
 
       <input
@@ -88,12 +90,14 @@ export function ResearchItemForm({ onSubmit }: ResearchItemFormProps) {
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Optional notes..."
         className="w-full border rounded p-2 text-sm"
+        data-testid="research-notes-input"
       />
 
       <button
         type="submit"
         disabled={(!rawText.trim() && !sourceUrl.trim()) || submitting}
         className="w-full border rounded p-2 text-sm disabled:opacity-60"
+        data-testid="research-submit-button"
       >
         {submitting ? "Adding..." : "Add to Inbox"}
       </button>

@@ -54,6 +54,7 @@ export function IntakeChecksCard({
             rows={5}
             className="w-full rounded-md border px-3 py-2 text-sm"
             placeholder="Paste the exact excerpt or source text used for intake."
+            data-testid="authority-source-text-input"
           />
         </label>
 
@@ -64,6 +65,7 @@ export function IntakeChecksCard({
             onChange={(event) => setProvidedLocator(event.target.value)}
             className="w-full rounded-md border px-3 py-2 text-sm"
             placeholder="e.g. para. 42 or p. 113"
+            data-testid="authority-locator-input"
           />
         </label>
       </div>
@@ -74,6 +76,7 @@ export function IntakeChecksCard({
           type="button"
           disabled={isMutating}
           className="rounded-md border px-3 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="run-intake-button"
           onClick={() =>
             onRunIntake({
               authorityId: authority.id,
