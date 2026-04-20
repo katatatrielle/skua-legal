@@ -1,0 +1,125 @@
+id: commercial-dd-report
+name: Commercial DD Report
+version: "0.1"
+description: Multi-document diligence sweep that produces an extraction table, memo draft, and exceptions list.
+questions:
+  - What is the counterparty name?
+  - What is the governing law?
+  - Is consent required on assignment or change of control?
+  - Does the contract auto-renew?
+  - Summarize any unusual termination rights.
+exports:
+  - xlsx
+  - memo
+  - docx
+  - exceptions_list
+default_artifact_variant_id: buyer_full
+artifact_variants:
+  - id: buyer_full
+    name: Buyer Full Report
+    description: Full diligence workbook and memo layout for buyer-side internal review.
+    workbook_sheets:
+      - id: workflow-results
+        title: Workflow Results
+        kind: results
+      - id: citations
+        title: Citations
+        kind: citations
+      - id: exceptions
+        title: Exceptions
+        kind: exceptions
+      - id: document-summaries
+        title: Document Summaries
+        kind: document_summaries
+      - id: history
+        title: History
+        kind: history
+    memo_sections:
+      - heading: Executive summary
+        kind: overview
+        empty_text: No documents were included in this workflow run.
+      - heading: Assignment and change-of-control risks
+        kind: question_rollup
+        question_terms:
+          - assignment
+          - change of control
+        empty_text: No assignment or change-of-control findings surfaced.
+      - heading: Renewal and termination observations
+        kind: question_rollup
+        question_terms:
+          - auto-renew
+          - termination
+        empty_text: No renewal or termination findings surfaced.
+      - heading: Document summaries
+        kind: document_summaries
+      - heading: Exceptions list
+        kind: exceptions
+      - heading: Report history
+        kind: history
+  - id: exec_brief
+    name: Executive Brief
+    description: Lighter internal memo and workbook variant focused on issues and summary output.
+    workbook_sheets:
+      - id: workflow-results
+        title: Key Findings
+        kind: results
+        question_terms:
+          - governing law
+          - assignment
+          - termination
+      - id: exceptions
+        title: Exceptions
+        kind: exceptions
+      - id: history
+        title: History
+        kind: history
+    memo_sections:
+      - heading: Executive summary
+        kind: overview
+      - heading: Critical findings
+        kind: question_rollup
+        question_terms:
+          - governing law
+          - assignment
+          - termination
+        empty_text: No critical findings surfaced.
+      - heading: Exceptions list
+        kind: exceptions
+workbook_sheets:
+  - id: workflow-results
+    title: Workflow Results
+    kind: results
+  - id: citations
+    title: Citations
+    kind: citations
+  - id: exceptions
+    title: Exceptions
+    kind: exceptions
+  - id: document-summaries
+    title: Document Summaries
+    kind: document_summaries
+  - id: history
+    title: History
+    kind: history
+memo_sections:
+  - heading: Executive summary
+    kind: overview
+    empty_text: No documents were included in this workflow run.
+  - heading: Assignment and change-of-control risks
+    kind: question_rollup
+    question_terms:
+      - assignment
+      - change of control
+    empty_text: No assignment or change-of-control findings surfaced.
+  - heading: Renewal and termination observations
+    kind: question_rollup
+    question_terms:
+      - auto-renew
+      - termination
+    empty_text: No renewal or termination findings surfaced.
+  - heading: Document summaries
+    kind: document_summaries
+  - heading: Exceptions list
+    kind: exceptions
+  - heading: Report history
+    kind: history

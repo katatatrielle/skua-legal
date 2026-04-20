@@ -1,0 +1,12 @@
+{
+  "name": "@skua/sdk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Internal SDK for Skua Legal",
+  "dependencies": {
+    "@skua/schemas": "file:../schemas"
+  }
+}

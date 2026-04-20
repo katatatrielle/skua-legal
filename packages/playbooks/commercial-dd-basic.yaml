@@ -1,0 +1,55 @@
+name: commercial-dd-basic
+version: "0.1"
+description: Basic commercial contract diligence for share and asset purchase transactions.
+checks:
+  - id: assignment
+    label: Assignment
+    question: Does the agreement restrict assignment?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: change_of_control
+    label: Change of control
+    question: Is consent required in connection with a direct or indirect change of control?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: auto_renewal
+    label: Auto-renewal
+    question: Does the agreement renew automatically unless notice is given?
+    output: enum[yes,no,unclear]
+    severity_if_yes: low
+  - id: exclusivity
+    label: Exclusivity
+    question: Does the agreement contain exclusivity, non-compete, or most-favored-nation obligations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: termination
+    label: Termination
+    question: Are there unusual termination rights, notice periods, or post-termination obligations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: privacy
+    label: Privacy and security
+    question: Does the agreement impose material privacy, security, or cross-border data transfer obligations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: ip
+    label: Intellectual property
+    question: Are there non-standard IP ownership, license, or use restriction terms?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: liability
+    label: Liability and indemnity
+    question: Are there unusual indemnities, uncapped liabilities, or non-market liability limitations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: governing_law
+    label: Governing law
+    question: Does the agreement use non-standard governing law, venue, or arbitration provisions?
+    output: enum[yes,no,unclear]
+    severity_if_yes: low
+required_citations:
+  - document_id
+  - page_start
+  - page_end
+  - section_heading
+  - quoted_snippet

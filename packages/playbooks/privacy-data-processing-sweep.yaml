@@ -1,0 +1,35 @@
+name: privacy-data-processing-sweep
+version: "0.1"
+description: Privacy and data-processing sweep focused on personal information handling, transfers, security, and breach response.
+checks:
+  - id: personal_information
+    label: Personal information
+    question: Does the agreement involve personal information, customer data, employee data, or special categories of data?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: cross_border_transfers
+    label: Data transfers
+    question: Does the agreement permit or require cross-border data transfers or offshore subprocessors?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: security_commitments
+    label: Security commitments
+    question: Does the agreement contain material security standards, audit rights, or incident-response obligations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: breach_notification
+    label: Breach notification
+    question: Does the agreement impose stringent breach-notification timing or cooperation obligations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: data_retention
+    label: Retention and deletion
+    question: Does the agreement impose deletion, return, or retention obligations for data?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+required_citations:
+  - document_id
+  - page_start
+  - page_end
+  - section_heading
+  - quoted_snippet

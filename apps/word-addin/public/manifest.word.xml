@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+  <Id>6b10fd9e-20f2-4d73-b984-53ca5511969f</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Skua Legal</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Skua Contracts" />
+  <Description DefaultValue="Word-first contract review, ask, draft, and standards workflows for Skua Legal." />
+  <IconUrl DefaultValue="https://localhost:3001/icons/skua-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:3001/icons/skua-80.png" />
+  <SupportUrl DefaultValue="https://github.com/katerinamcmullen/skua" />
+  <AppDomains>
+    <AppDomain>https://localhost:3001</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document" />
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="WordApi" MinVersion="1.4" />
+      <Set Name="SharedRuntime" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:3001/" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <Runtimes>
+          <Runtime resid="Taskpane.Url" lifetime="long" />
+        </Runtimes>
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="Skua.Contracts.Group">
+                <Label resid="Skua.Group.Label" />
+                <Icon>
+                  <bt:Image size="16" resid="Skua.Icon.16" />
+                  <bt:Image size="32" resid="Skua.Icon.32" />
+                  <bt:Image size="80" resid="Skua.Icon.80" />
+                </Icon>
+                <Control xsi:type="Button" id="Skua.OpenPane.Button">
+                  <Label resid="Skua.OpenPane.Label" />
+                  <Supertip>
+                    <Title resid="Skua.OpenPane.Label" />
+                    <Description resid="Skua.OpenPane.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Skua.ReviewSelection.Button">
+                  <Label resid="Skua.ReviewSelection.Label" />
+                  <Supertip>
+                    <Title resid="Skua.ReviewSelection.Label" />
+                    <Description resid="Skua.ReviewSelection.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.ReviewSelection.Url" />
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Skua.ReviewDocument.Button">
+                  <Label resid="Skua.ReviewDocument.Label" />
+                  <Supertip>
+                    <Title resid="Skua.ReviewDocument.Label" />
+                    <Description resid="Skua.ReviewDocument.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.ReviewDocument.Url" />
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Skua.Ask.Button">
+                  <Label resid="Skua.Ask.Label" />
+                  <Supertip>
+                    <Title resid="Skua.Ask.Label" />
+                    <Description resid="Skua.Ask.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Ask.Url" />
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Skua.Draft.Button">
+                  <Label resid="Skua.Draft.Label" />
+                  <Supertip>
+                    <Title resid="Skua.Draft.Label" />
+                    <Description resid="Skua.Draft.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Draft.Url" />
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Skua.RefreshAnchors.Button">
+                  <Label resid="Skua.RefreshAnchors.Label" />
+                  <Supertip>
+                    <Title resid="Skua.RefreshAnchors.Label" />
+                    <Description resid="Skua.RefreshAnchors.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.RefreshAnchors.Url" />
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Skua.ExportSummary.Button">
+                  <Label resid="Skua.ExportSummary.Label" />
+                  <Supertip>
+                    <Title resid="Skua.ExportSummary.Label" />
+                    <Description resid="Skua.ExportSummary.Description" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Skua.Icon.16" />
+                    <bt:Image size="32" resid="Skua.Icon.32" />
+                    <bt:Image size="80" resid="Skua.Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>SkuaTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.ExportSummary.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Skua.Icon.16" DefaultValue="https://localhost:3001/icons/skua-16.png" />
+        <bt:Image id="Skua.Icon.32" DefaultValue="https://localhost:3001/icons/skua-32.png" />
+        <bt:Image id="Skua.Icon.80" DefaultValue="https://localhost:3001/icons/skua-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3001/" />
+        <bt:Url id="Taskpane.ReviewSelection.Url" DefaultValue="https://localhost:3001/?tab=review&amp;scope=selection" />
+        <bt:Url id="Taskpane.ReviewDocument.Url" DefaultValue="https://localhost:3001/?tab=review&amp;scope=full_document" />
+        <bt:Url id="Taskpane.Ask.Url" DefaultValue="https://localhost:3001/?tab=ask" />
+        <bt:Url id="Taskpane.Draft.Url" DefaultValue="https://localhost:3001/?tab=draft&amp;mode=library" />
+        <bt:Url id="Taskpane.RefreshAnchors.Url" DefaultValue="https://localhost:3001/?tab=review&amp;action=refresh_anchors" />
+        <bt:Url id="Taskpane.ExportSummary.Url" DefaultValue="https://localhost:3001/?tab=review&amp;action=export_summary" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="Skua.Group.Label" DefaultValue="Skua Contracts" />
+        <bt:String id="Skua.OpenPane.Label" DefaultValue="Open Pane" />
+        <bt:String id="Skua.ReviewSelection.Label" DefaultValue="Review Selection" />
+        <bt:String id="Skua.ReviewDocument.Label" DefaultValue="Review Document" />
+        <bt:String id="Skua.Ask.Label" DefaultValue="Ask" />
+        <bt:String id="Skua.Draft.Label" DefaultValue="Draft from Library" />
+        <bt:String id="Skua.RefreshAnchors.Label" DefaultValue="Refresh Anchors" />
+        <bt:String id="Skua.ExportSummary.Label" DefaultValue="Export to Project" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="Skua.OpenPane.Description" DefaultValue="Open the Skua Contracts task pane." />
+        <bt:String id="Skua.ReviewSelection.Description" DefaultValue="Open the Review tab using the current selection scope." />
+        <bt:String id="Skua.ReviewDocument.Description" DefaultValue="Open the Review tab using the full document scope." />
+        <bt:String id="Skua.Ask.Description" DefaultValue="Open the task pane on the Ask tab." />
+        <bt:String id="Skua.Draft.Description" DefaultValue="Open the task pane on the Draft from Library mode." />
+        <bt:String id="Skua.RefreshAnchors.Description" DefaultValue="Open the Review tab and refresh the current Word selection context." />
+        <bt:String id="Skua.ExportSummary.Description" DefaultValue="Open the Review tab and export the current review summary to the project." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

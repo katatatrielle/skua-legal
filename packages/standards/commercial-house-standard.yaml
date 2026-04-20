@@ -1,0 +1,34 @@
+id: commercial-house-standard
+name: Commercial House Standard
+version: "0.1"
+description: Buyer-side commercial baseline for Ontario-focused vendor and customer paper.
+comparison_mode: house_standard
+required_clauses:
+  - id: assignment-affiliate
+    label: Affiliate transfer carve-out
+    severity: high
+    required_terms:
+      - affiliate
+      - assign
+    recommended_fix: Add an affiliate or internal reorganization carve-out to the assignment restriction.
+  - id: governing-law-ontario
+    label: Ontario governing law position
+    severity: medium
+    required_terms:
+      - ontario
+      - governing law
+    recommended_fix: Conform the clause to Ontario governing law and venue language.
+  - id: data-localization
+    label: Data localization fallback
+    severity: medium
+    required_terms:
+      - canada
+      - data
+    recommended_fix: Add a Canada-based data residency or localization fallback position.
+  - id: limitation-cap
+    label: Liability cap structure
+    severity: medium
+    required_terms:
+      - liability
+      - cap
+    recommended_fix: Add a clear liability cap with carve-outs for excluded claims.

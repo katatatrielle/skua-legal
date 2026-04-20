@@ -1,0 +1,24 @@
+{
+  "name": "skua",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Skua Legal monorepo scaffold",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:review": "npm --workspace @skua/review run dev",
+    "dev:word-addin": "npm --workspace @skua/word-addin run dev",
+    "build:review": "npm --workspace @skua/review run build",
+    "build:word-addin": "npm --workspace @skua/word-addin run build",
+    "lint:review": "npm --workspace @skua/review run lint",
+    "lint:word-addin": "npm --workspace @skua/word-addin run lint",
+    "typecheck:review": "npm --workspace @skua/review run typecheck",
+    "typecheck:word-addin": "npm --workspace @skua/word-addin run typecheck",
+    "dev:dd-api": "cd services/dd-api && uvicorn app.main:app --reload",
+    "check:api": "python3 -m compileall services/dd-api/app",
+    "lint": "npm run lint:review && npm run lint:word-addin && npm run check:api",
+    "test": "npm run typecheck:review && npm run typecheck:word-addin && npm run check:api"
+  }
+}

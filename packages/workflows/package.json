@@ -1,0 +1,6 @@
+{
+  "name": "@skua/workflows",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Editable workflow templates for Skua Legal"
+}
