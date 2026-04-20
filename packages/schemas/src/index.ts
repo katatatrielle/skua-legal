@@ -719,3 +719,187 @@ export interface DdReportEventRecord {
   diff_summary: DdReportEventSummary;
   created_at: string;
 }
+
+export interface PlatformDocumentVersionRecord {
+  id: string;
+  workspace_id: string;
+  matter_id: string;
+  document_id: string;
+  name: string;
+  mime_type?: string | null;
+  source_bucket?: string | null;
+  source_key?: string | null;
+  sha256: string;
+  version_number: number;
+  status: string;
+  parse_status: string;
+  index_status: string;
+  segment_count: number;
+  created_at: string;
+}
+
+export interface PlatformDocumentSegmentRecord {
+  id: string;
+  segment_type: string;
+  ordinal: number;
+  title?: string | null;
+  text: string;
+  page_number?: number | null;
+  anchor: Record<string, unknown>;
+  embedding_status: string;
+  confidence: number;
+}
+
+export interface PlatformDocumentVersionDetailRecord {
+  document_version: PlatformDocumentVersionRecord;
+  parse_status: string;
+  parser_name: string;
+  parse_confidence?: number | null;
+  metadata: Record<string, unknown>;
+  segment_count: number;
+  segments: PlatformDocumentSegmentRecord[];
+}
+
+export interface PlatformDocumentIngestRecord {
+  document_version: PlatformDocumentVersionRecord;
+  parse_status: string;
+  parser_name: string;
+  segment_count: number;
+  notes: string[];
+}
+
+export interface PlatformSelectionIngestRequest {
+  workspace_id: string;
+  matter_id?: string | null;
+  document_name: string;
+  selection_text: string;
+}
+
+export interface PlatformDocumentSearchRequest {
+  query: string;
+  limit?: number | null;
+  segment_types?: string[] | null;
+}
+
+export interface PlatformDocumentSearchResult {
+  segment_id?: string | null;
+  ordinal: number;
+  segment_type: string;
+  title?: string | null;
+  text: string;
+  page_number?: number | null;
+  anchor: Record<string, unknown>;
+  score: number;
+  retrieval_mode: string;
+}
+
+export interface PlatformAnchorRelocationRequest {
+  anchor: Record<string, unknown>;
+  document_version_id?: string | null;
+  candidate_segments?: string[] | null;
+}
+
+export interface PlatformAnchorRelocationResult {
+  strategy: string;
+  matched_text: string;
+  score: number;
+  ordinal?: number | null;
+}
+
+export interface PlatformPlaybookTriggerRecord {
+  mode: string;
+  search_terms?: string[];
+  patterns?: string[];
+}
+
+export interface PlatformPlaybookRuleRecord {
+  id: string;
+  title: string;
+  issue_type: string;
+  clause_type?: string | null;
+  priority: number;
+  action_type: string;
+  trigger: PlatformPlaybookTriggerRecord;
+  severity: SeverityLevel;
+  explanation_template: string;
+  comment_template?: string | null;
+  fallback_language?: string | null;
+}
+
+export interface PlatformPlaybookRecord {
+  id: string;
+  name: string;
+  version: string;
+  contract_type: string;
+  represented_party: string;
+  issue_rules: PlatformPlaybookRuleRecord[];
+}
+
+export interface PlatformReviewCitationRecord {
+  id: string;
+  document_segment_id?: string | null;
+  label?: string | null;
+  quote: string;
+  ordinal?: number | null;
+  page_number?: number | null;
+  anchor: Record<string, unknown>;
+}
+
+export interface PlatformReviewFindingRecord {
+  id: string;
+  review_run_id: string;
+  issue_type: string;
+  clause_type?: string | null;
+  finding_type: string;
+  title: string;
+  severity: SeverityLevel;
+  confidence?: number | null;
+  explanation: string;
+  proposed_action?: string | null;
+  comment_text?: string | null;
+  redline_text?: string | null;
+  rank_score?: number | null;
+  actionable: boolean;
+  metadata: Record<string, unknown>;
+  citations: PlatformReviewCitationRecord[];
+}
+
+export interface PlatformReviewRunSummaryRecord {
+  total_findings: number;
+  actionable_count: number;
+  informational_count: number;
+  high_severity_count: number;
+  medium_severity_count: number;
+  low_severity_count: number;
+}
+
+export interface PlatformReviewFilterMetadataRecord {
+  issue_types: string[];
+  severities: string[];
+  clause_types: string[];
+  finding_types: string[];
+  actionable_count: number;
+  informational_count: number;
+}
+
+export interface PlatformReviewRunCreateRequest {
+  workspace_id: string;
+  document_version_id: string;
+  playbook_id: string;
+}
+
+export interface PlatformReviewRunRecord {
+  id: string;
+  workspace_id: string;
+  matter_id?: string | null;
+  document_version_id?: string | null;
+  playbook: PlatformPlaybookRecord;
+  status: string;
+  model_provider?: string | null;
+  model_name?: string | null;
+  summary: PlatformReviewRunSummaryRecord;
+  filters: PlatformReviewFilterMetadataRecord;
+  findings: PlatformReviewFindingRecord[];
+  created_at: string;
+  completed_at?: string | null;
+}

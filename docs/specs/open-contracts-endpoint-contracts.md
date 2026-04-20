@@ -947,6 +947,6 @@ Response:
 
 ## 9. Notes for the Current Repo
 
-- The current `services/dd-api` endpoints can remain as a bootstrap adapter while the canonical v1 endpoints are introduced.
+- The current `services/api` endpoints can remain as a bootstrap adapter while the canonical v1 endpoints are introduced.
 - The current `workspace` resource in the repo maps most closely to `project` in these contracts.
 - The Word add-in should never rely on the server to mutate DOCX content directly in v1; the API stores suggestions and action receipts, and Office.js performs the actual comment and redline application.

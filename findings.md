@@ -1,5 +1,34 @@
 # Findings & Decisions
 
+## 2026-04-20 Phase 3 Parsing Findings
+
+- The existing upload/parsing logic was still anchored to the legacy SQLite review path, so Phase 3 needed a platform-native document pipeline instead of another bridge inside `repository.py`.
+- A useful Phase 3 slice only needed one new persistent surface: parsed segments in the existing `document_segments` table. The richer anchor payload could live inside `anchor_json` without another schema fork.
+- Word selection upload is best modeled as a plain-text source object plus a normal document-version row, not a special transient run. That keeps review, ask, and revise able to point at the same document-version concept later.
+- DOCX parsing needed ordered block iteration across both paragraphs and tables. Iterating only `document.paragraphs` loses table position and makes clause order less trustworthy.
+- PDF parsing quality is inherently lower with `pypdf` text extraction alone, so low-confidence tagging is more useful right now than pretending the layout is stable.
+- Hybrid retrieval does not need a full model-provider dependency to be effective in this stage. Deterministic token-vector similarity plus lexical overlap is enough to support cited segment lookup and keep the interface compatible with a stronger embedding backend later.
+- Anchor relocation works best as a ranked strategy ladder: exact quote, quote hash, then fuzzy neighborhood match using quote/prefix/suffix token overlap.
+- Fixture-backed parse QA is more valuable here than screenshot-style tests because the core risk is structural regression in segments, not UI rendering.
+
+## 2026-04-20 Phase 2 Foundation Findings
+
+- Phase 2 was not complete after the repo reset alone. The missing functional gaps were default-workspace provisioning on registration, real API tests in CI, and generated-artifact cleanup.
+- The safest way to land auth without rewriting the whole product surface was to layer a platform membership model over the existing workspace/project tables, then mirror newly created workspaces into the platform tables.
+- Registration has to create a default workspace in the legacy workspace store as well as the platform schema; a platform-only workspace would not show up in the current support web surface or the existing workspace routes.
+- Generated artifacts need to be written through the same object-storage abstraction as uploaded source files or the deletion lifecycle remains incomplete.
+- A self-healing `npm run test:api` is worth the extra shell logic because repo renames can leave behind stale virtualenvs with broken shebangs or missing extras.
+- The most valuable Phase 2 verification targets were not broad smoke tests. They were auth/default-workspace provisioning, workspace-scoped provider-config access, and artifact cleanup on project deletion.
+
+## 2026-04-20 Solo-First Reset Findings
+
+- The highest-leverage implementation slice was the scope-reset layer, not a deeper backend rewrite: repo names, startup scripts, visible tabs, and docs were still pulling the product back toward a DD workspace.
+- Renaming `apps/review` to `apps/web` and `services/dd-api` to `services/api` is mechanically safe in this repo because the JavaScript workspace layer and Python service both use relative local package wiring rather than hardcoded build artifacts.
+- The web app can keep older query and workflow code paths behind the scenes without surfacing them in the main UI; hiding those panels is enough to re-establish the Word-first product contract for now.
+- The Word add-in can be narrowed to `Review`, `Ask`, `Revise`, `Saved Clauses`, and `Settings` without deleting the older draft/playbook/standards plumbing immediately; relabeling and hiding are the fastest safe transition.
+- `SKUA_API_BASE_URL` should become the preferred environment variable, but `DD_API_BASE_URL` is still worth keeping as a fallback until the repo fully transitions.
+- A simple local bootstrap script plus `.env.example` files materially improves the Phase 0 repo reset because they reduce ambiguity after the app and service renames.
+
 ## Requirements
 - Build an MVP for commercial contract DD on share and asset purchases.
 - Support deal workspaces, PDF/DOCX upload, auto-classification, structured extraction, issue spotting, review grid, cited deal chat, and export outputs.
@@ -104,6 +133,7 @@
 | Standards remediation should be explicit in the API contract | Returning `fix_mode` and `matched_excerpt` from the backend lets the Word add-in apply the right action without inventing its own remediation heuristics. |
 | Standards JSON blobs need tolerant hydration while the schema evolves | Older SQLite rows stored only clause labels or minimal dicts, so backward-compatible record building prevents existing runs from breaking. |
 | Standards template breadth is cheap once the loader scans a directory | Adding `vendor-paper-tightened.yaml` broadened coverage without introducing any new configuration surface. |
+| Land the solo-first reset as a compatibility-minded rename, not a flag day rewrite | Preserving fallback scripts and env vars keeps the repo runnable while the product story changes on top. |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -121,3 +151,10 @@
 
 ## Visual/Browser Findings
 - None yet.
+
+## Phase 35 Findings
+
+- The first legal-review engine does not need an LLM to satisfy the Phase 4 contract. Deterministic playbook rules are enough to prove the storage shape, citation guarantees, review statuses, and evaluation harness without pretending unsupported reasoning is production-ready.
+- Keeping starter playbooks file-backed but syncing them into `playbooks_platform` at startup is the right bridge. The repo keeps versioned review logic in source control while the runtime still has a durable playbook table for review runs to reference.
+- Ranking becomes much easier to reason about when it is explicitly formula-based. A stable severity-plus-priority-plus-confidence score is enough for v1 filtering and ordering, and it keeps later preference-signal work additive rather than corrective.
+- Validation belongs at finding-write time, not only in the UI. Rejecting findings without support segments and citations whose quotes do not match the stored segment text keeps the review surface honest before Word ever renders the result.

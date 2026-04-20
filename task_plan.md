@@ -1,12 +1,35 @@
-# Task Plan: Skua DD Platform Kickoff
+# Task Plan: Skua Solo-First Contract Copilot Reset
 
 ## Goal
-Turn the repo scaffold into a runnable due-diligence slice that supports real workspace creation, PDF/DOCX upload, parsing, persistence, and citation-backed issue generation in the review UI, then extend it with an implementation-ready spec package for the broader Word-first contracts product.
+Reset the repo around the solo-first, Word-native contract copilot and implement the first execution slice: rename repo boundaries to match the v1 product story, remove non-v1 surfaces, narrow the visible UI to Review, Ask, Revise, Saved Clauses, and Settings, and keep the stack runnable after the transition.
 
 ## Current Phase
-Phase 31
+Phase 35
 
 ## Phases
+
+### Phase 35: Phase 4 Review Engine
+- [x] Add validated platform playbook contracts and sync starter playbooks from file-backed JSON
+- [x] Implement deterministic review runs with persisted findings, citations, comment/redline artifacts, and ranking
+- [x] Expose platform review-playbook and review-run API routes plus a migration for richer finding metadata
+- [x] Add review-engine tests for stored findings, filtering, listing, and evaluation metrics
+- **Status:** complete
+
+### Phase 34: Phase 3 Ingestion, Parsing, and Anchors
+- [x] Add platform-native ingest routes for web uploads and Word selection uploads
+- [x] Add richer DOCX/PDF parsing with ordered segment extraction for headings, clauses, paragraphs, and tables
+- [x] Add stable anchor payloads with ordinal, quote, prefix, suffix, page, and relocation strategies
+- [x] Add hybrid segment retrieval using lexical fallback plus stored deterministic embedding tokens
+- [x] Add parse QA fixtures/tests for DOCX, PDF, ingest/search, and anchor relocation
+- **Status:** complete
+
+### Phase 33: Phase 2 Platform Foundation
+- [x] Add the Postgres-ready platform schema, Alembic config, and local seed/bootstrap scripts
+- [x] Add email/password auth, default workspace provisioning, memberships, and workspace-scoped access checks
+- [x] Add source/artifact object storage helpers plus deletion cleanup for generated artifacts
+- [x] Add Redis/RQ queue wiring, worker fallback behavior, CI, staging compose files, and structured request logging
+- [x] Add API tests for auth, workspace scoping, and artifact cleanup; wire them into the root test command and CI
+- **Status:** complete
 
 ### Phase 1: Requirements & Discovery
 - [x] Understand user intent
@@ -227,6 +250,15 @@ Phase 31
 - [x] Update docs and planning files for the structured-export baseline
 - **Status:** complete
 
+### Phase 32: Solo-First Repo Reset
+- [x] Rename repo surfaces to the v1 boundaries
+- [x] Remove or hide non-v1 UI flows
+- [x] Add local env/bootstrap defaults for the renamed stack
+- [x] Rebrand docs and startup commands around Word add-in plus thin web app
+- [x] Verify the renamed app and API still build and typecheck
+- [x] Update planning files with the new baseline
+- **Status:** complete
+
 ### Phase 29: Template-Driven Artifact Layouts
 - [x] Expand workflow template contracts to declare workbook sheets and memo sections structurally
 - [x] Move export composition to use workflow template metadata instead of a single hardcoded layout
@@ -297,7 +329,7 @@ Phase 31
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `npm install` rejected `workspace:*` dependency URLs | 1 | Replaced internal package links with local `file:` references. |
-| FastAPI `TestClient` missing `httpx` | 1 | Added `httpx` as a `dev` extra in `services/dd-api/pyproject.toml`. |
+| FastAPI `TestClient` missing `httpx` | 1 | Added `httpx` as a `dev` extra in `services/api/pyproject.toml`. |
 | Playbook YAML versions parsed as floats | 1 | Quoted playbook version values to match the API schema. |
 | Next.js app-page typing rejected a non-promise `searchParams` signature | 1 | Matched the page prop type expected by Next's generated app types and cast the resolved params. |
 | New queued jobs initially appeared stale right after enqueue/complete | 1 | Read newly created and updated job rows from the same SQLite transaction instead of a second connection before commit. |

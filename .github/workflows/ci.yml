@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: skua
+          POSTGRES_PASSWORD: skua
+          POSTGRES_DB: skua
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skua -d skua"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    env:
+      SKUA_DATABASE_URL: postgresql+psycopg://skua:skua@localhost:5432/skua
+      SKUA_REDIS_URL: redis://localhost:6379/0
+      SKUA_API_BASE_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: python -m venv services/api/.venv
+      - run: services/api/.venv/bin/pip install -e "services/api[dev]"
+      - run: cd services/api && ../api/.venv/bin/alembic upgrade head
+      - run: npm test

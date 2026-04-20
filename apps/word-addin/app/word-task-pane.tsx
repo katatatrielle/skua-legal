@@ -37,7 +37,7 @@ import {
   type WordSelectionState
 } from "../lib/office";
 
-type TabId = "review" | "ask" | "draft" | "playbooks" | "standards";
+type TabId = "review" | "ask" | "revise" | "saved" | "settings";
 type SeverityFilter = "all" | ReviewSuggestionRecord["severity"];
 type StatusFilter = "all" | ReviewSuggestionRecord["status"];
 type TypeFilter = "all" | string;
@@ -66,9 +66,9 @@ type DraftMode = "library" | "instruction" | "improve";
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "review", label: "Review" },
   { id: "ask", label: "Ask" },
-  { id: "draft", label: "Draft" },
-  { id: "playbooks", label: "Playbooks" },
-  { id: "standards", label: "Std" }
+  { id: "revise", label: "Revise" },
+  { id: "saved", label: "Saved Clauses" },
+  { id: "settings", label: "Settings" }
 ];
 
 export function WordTaskPane({
@@ -606,12 +606,12 @@ export function WordTaskPane({
     const normalizedQuery = draftQuery.trim();
 
     if (draftMode === "instruction" && !normalizedInstruction) {
-      setDraftError("Enter drafting instructions before running Draft.");
+      setDraftError("Enter revision instructions before running Revise.");
       return;
     }
 
     if (draftMode !== "instruction" && !normalizedQuery && !draftSourceText) {
-      setDraftError("Draft currently needs a search query or current clause text.");
+      setDraftError("Revise currently needs a saved-clause query or current clause text.");
       return;
     }
 
@@ -677,13 +677,13 @@ export function WordTaskPane({
       }
 
       if (nextDraftRun.status === "succeeded") {
-        setActionMessage("Draft completed with adjusted language and citations.");
+        setActionMessage("Revise completed with suggested language and citations.");
       } else {
-        setActionMessage("Draft run queued. Start the local worker to complete it.");
+        setActionMessage("Revise run queued. Start the local worker to complete it.");
       }
     } catch (error) {
       setDraftError(
-        error instanceof Error ? error.message : "Unable to run Draft."
+        error instanceof Error ? error.message : "Unable to run Revise."
       );
     } finally {
       setIsRunningDraft(false);
@@ -808,7 +808,7 @@ export function WordTaskPane({
 
   async function handleCopyDraftText(text: string) {
     await navigator.clipboard.writeText(text);
-    setActionMessage("Draft text copied to the clipboard.");
+    setActionMessage("Suggested language copied to the clipboard.");
   }
 
   function syncReviewRunState(nextRun: ReviewRunRecord) {
@@ -960,7 +960,7 @@ export function WordTaskPane({
       const nextRun = (await response.json()) as ReviewRunRecord;
       syncReviewRunState(nextRun);
       await loadPlaybookData();
-      setActionMessage("Saved the suggestion note to playbook memory.");
+      setActionMessage("Saved the suggestion note to clause memory.");
     } catch (error) {
       setReviewError(
         error instanceof Error ? error.message : "Unable to save the suggestion to a playbook."
@@ -1040,16 +1040,15 @@ export function WordTaskPane({
           <p className="eyebrow">Skua Contracts / Word Add-in</p>
           <h1>Shared-runtime scaffold</h1>
           <p className="context-copy">
-            The pane now includes a manifest-ready tab model and a thin Office adapter
-            that can read the current Word selection and apply comments or replacement
-            text when the add-in is sideloaded in Word.
+            The pane is now aligned to the v1 product contract: review, ask, revise,
+            saved clauses, and settings inside a Word-native workflow.
           </p>
         </div>
         <div className="ribbon-preview">
           <span>Open Pane</span>
           <span>Review</span>
           <span>Ask</span>
-          <span>Draft</span>
+          <span>Revise</span>
         </div>
       </section>
 
@@ -1137,11 +1136,11 @@ export function WordTaskPane({
               ? "Using selection scope for a general review run."
               : activeTab === "ask"
                 ? "Ask answers are citation-first and source-separated."
-                : activeTab === "draft"
-                  ? "Library results are adjusted to the current deal context."
-                  : activeTab === "playbooks"
-                    ? "Playbooks stay editable and versionable."
-                    : "Standards compares against house positions, not market claims."}
+                : activeTab === "revise"
+                  ? "Revise returns suggested language that stays separate from sourced facts."
+                  : activeTab === "saved"
+                    ? "Saved clauses are reusable fallback language and review memory."
+                    : "Settings controls provider, billing, and support-side behavior."}
           </div>
 
           {selectionError ? <div className="inline-alert error">{selectionError}</div> : null}
@@ -1551,12 +1550,12 @@ export function WordTaskPane({
               </section>
             ) : null}
 
-            {activeTab === "draft" ? (
+            {activeTab === "revise" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Draft from library</p>
-                    <h3>Search, preview, auto-adjust</h3>
+                    <p className="section-label">Revise clause</p>
+                    <h3>Suggested language with clause context</h3>
                   </div>
                   <span className="status-pill">{draftResult.status}</span>
                 </div>
@@ -1564,17 +1563,17 @@ export function WordTaskPane({
                 <div className="toggle-list">
                   <Toggle
                     checked={draftMode === "library"}
-                    label="Draft from library"
+                    label="Use saved language"
                     onChange={() => setDraftMode("library")}
                   />
                   <Toggle
                     checked={draftMode === "instruction"}
-                    label="Draft from instruction"
+                    label="Follow instruction"
                     onChange={() => setDraftMode("instruction")}
                   />
                   <Toggle
                     checked={draftMode === "improve"}
-                    label="Improve existing clause"
+                    label="Improve clause"
                     onChange={() => setDraftMode("improve")}
                   />
                 </div>
@@ -1590,7 +1589,7 @@ export function WordTaskPane({
                 ) : null}
 
                 <label className="field">
-                  <span>Search library</span>
+                  <span>Saved clause search</span>
                   <input
                     onChange={(event) => setDraftQuery(event.target.value)}
                     placeholder="assignment clause affiliate carve-out"
@@ -1602,13 +1601,13 @@ export function WordTaskPane({
 
                 <div className="action-row">
                   <button disabled={isRunningDraft} onClick={() => void handleDraftRun()} type="button">
-                    {isRunningDraft ? "Running Draft..." : "Generate draft"}
+                    {isRunningDraft ? "Running revise..." : "Generate suggested language"}
                   </button>
                 </div>
 
                 <div className="answer-card">
-                  <p className="section-label">Generated draft</p>
-                  <p>{draftResult.generated_text || "Run Draft to generate adjusted language."}</p>
+                  <p className="section-label">Suggested language</p>
+                  <p>{draftResult.generated_text || "Run Revise to generate suggested language."}</p>
                 </div>
 
                 {draftResult.citations.length > 0 ? (
@@ -1652,7 +1651,7 @@ export function WordTaskPane({
                           }
                           type="button"
                         >
-                          Insert at cursor
+                          Replace selection
                         </button>
                         <button
                           className="ghost"
@@ -1667,7 +1666,7 @@ export function WordTaskPane({
                           }
                           type="button"
                         >
-                          Copy text
+                          Copy language
                         </button>
                       </div>
                     </article>
@@ -1676,12 +1675,12 @@ export function WordTaskPane({
               </section>
             ) : null}
 
-            {activeTab === "playbooks" ? (
+            {activeTab === "saved" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Playbooks</p>
-                    <h3>Editable rule packs</h3>
+                    <p className="section-label">Saved clauses</p>
+                    <h3>Reusable fallback language</h3>
                   </div>
                   <div className="action-row">
                     <button
@@ -1701,7 +1700,7 @@ export function WordTaskPane({
                   <div className="saved-notes-panel">
                     <div className="section-head compact">
                       <div>
-                        <p className="section-label">Recent captured notes</p>
+                        <p className="section-label">Recent saved clauses</p>
                         <strong>{savedPlaybookNotes.length} saved note(s)</strong>
                       </div>
                     </div>
@@ -1731,8 +1730,8 @@ export function WordTaskPane({
                   </div>
                 ) : (
                   <div className="empty-state">
-                    Saved suggestion notes will appear here after you capture them from a
-                    review run.
+                    Saved clause notes will appear here after you capture them from a
+                    review finding.
                   </div>
                 )}
 
@@ -1742,7 +1741,7 @@ export function WordTaskPane({
                       <div>
                         <strong>{playbook.name}</strong>
                         <p>
-                          {playbook.version} | {playbook.check_count} checks
+                          {playbook.version} | {playbook.check_count} starter checks
                         </p>
                       </div>
                       <span className="status-pill">Ready</span>
@@ -1760,129 +1759,85 @@ export function WordTaskPane({
                     ) : null}
                     <div className="action-row">
                       <button onClick={() => handleRunPlaybook(playbook.name)} type="button">
-                        Run
-                      </button>
-                      <button className="ghost" type="button">
-                        Edit
+                        Use in review
                       </button>
                       <button
                         className="ghost"
                         onClick={() => void handleExportPlaybook(playbook)}
                         type="button"
                       >
-                        Export
+                        Copy JSON
                       </button>
                     </div>
                   </article>
                 ))}
 
                 <div className="import-panel">
-                  <strong>Import playbook</strong>
-                  <p>YAML and JSON stay first-class so firms can version-control their rules.</p>
-                  <button type="button">Choose YAML / JSON file</button>
+                  <strong>Clause bank direction</strong>
+                  <p>
+                    The saved-clause surface is backed by captured review notes today and will
+                    evolve into first-class clause-bank CRUD in the next slice.
+                  </p>
                 </div>
               </section>
             ) : null}
 
-            {activeTab === "standards" ? (
+            {activeTab === "settings" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Standards</p>
-                    <h3>Compare to house standard</h3>
+                    <p className="section-label">Settings</p>
+                    <h3>Providers, billing, and support controls</h3>
                   </div>
-                  <button
-                    className="primary"
-                    disabled={isRunningStandards}
-                    onClick={() => void handleStandardsRun()}
-                    type="button"
-                  >
-                    {isRunningStandards ? "Running..." : "Run standard"}
-                  </button>
                 </div>
-
-                <div className="field-row">
-                  <label className="field">
-                    <span>House standard</span>
-                    <select
-                      value={selectedStandardsTemplateId}
-                      onChange={(event) => setSelectedStandardsTemplateId(event.target.value)}
-                    >
-                      {standardsTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="score-card">
-                  <span>Coverage score</span>
-                  <strong>{activeStandardsResult.score}</strong>
-                </div>
-
                 <div className="bullet-panel">
-                  <p className="section-label">Missing clauses</p>
-                  {activeStandardsResult.missing_clauses.length === 0 ? (
-                    <div className="empty-state">No required clauses are currently missing.</div>
-                  ) : (
-                    activeStandardsResult.missing_clauses.map((clause) => (
-                      <div className="clause-row" key={clause.clause_id}>
-                        <div className="stack-inline">
-                          <span>{clause.title}</span>
-                          <small>{clause.explanation}</small>
-                          <small>{clause.suggested_fix}</small>
-                        </div>
-                        <div className="mini-actions">
-                          <button
-                            disabled={isApplyingAction}
-                            onClick={() => void handleApplyStandardsFix(clause)}
-                            type="button"
-                          >
-                            {describeStandardsFixAction(clause.fix_mode)}
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="bullet-panel">
-                  <p className="section-label">Weak clauses</p>
-                  {activeStandardsResult.weak_clauses.length === 0 ? (
-                    <div className="empty-state">No weak clauses were flagged in the current selection.</div>
-                  ) : (
-                    activeStandardsResult.weak_clauses.map((clause) => (
-                    <div className="clause-row" key={clause.clause_id}>
-                      <div className="stack-inline">
-                        <span>{clause.title}</span>
-                        <small>{clause.explanation}</small>
-                        {clause.matched_excerpt ? <small>Matched: {clause.matched_excerpt}</small> : null}
-                        <small>{clause.suggested_fix}</small>
-                      </div>
-                      <div className="mini-actions">
-                        <button
-                          className="ghost"
-                          disabled={isLocatingAnchor || !clause.matched_excerpt}
-                          onClick={() => void handleLocateStandardsClause(clause)}
-                          type="button"
-                        >
-                          Go to
-                        </button>
-                        <button
-                          disabled={isApplyingAction}
-                          onClick={() => void handleApplyStandardsFix(clause)}
-                          type="button"
-                        >
-                          {clause.action}
-                        </button>
-                      </div>
+                  <p className="section-label">Workspace</p>
+                  <div className="clause-row">
+                    <div className="stack-inline">
+                      <span>Current workspace</span>
+                      <small>{pane_context.project_name}</small>
                     </div>
-                  )))}
+                  </div>
+                  <div className="clause-row">
+                    <div className="stack-inline">
+                      <span>Document</span>
+                      <small>{pane_context.document_name}</small>
+                    </div>
+                  </div>
                 </div>
 
-                {standardsError ? <p className="error-text">{standardsError}</p> : null}
+                <div className="bullet-panel">
+                  <p className="section-label">Provider mode</p>
+                  <div className="clause-row">
+                    <div className="stack-inline">
+                      <span>Default mode</span>
+                      <small>Hosted provider mode is assumed until BYOK lands.</small>
+                    </div>
+                  </div>
+                  <div className="clause-row">
+                    <div className="stack-inline">
+                      <span>API base URL</span>
+                      <small>
+                        {process.env.NEXT_PUBLIC_SKUA_API_BASE_URL ??
+                          process.env.SKUA_API_BASE_URL ??
+                          "http://127.0.0.1:8000"}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bullet-panel">
+                  <p className="section-label">Cost control</p>
+                  <div className="clause-row">
+                    <div className="stack-inline">
+                      <span>Current state</span>
+                      <small>
+                        Usage ledger, spend caps, billing warnings, and deletion controls are
+                        part of the next execution slice.
+                      </small>
+                    </div>
+                  </div>
+                </div>
               </section>
             ) : null}
           </div>

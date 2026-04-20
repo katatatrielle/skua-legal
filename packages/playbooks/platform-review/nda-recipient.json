@@ -1,0 +1,84 @@
+{
+  "id": "pb-nda-recipient-v1",
+  "name": "NDA Recipient-Side v1",
+  "version": "1.0.0",
+  "contract_type": "nda",
+  "represented_party": "recipient",
+  "issue_rules": [
+    {
+      "id": "use_restriction",
+      "title": "Use restriction is missing or weak",
+      "issue_type": "permitted_use",
+      "clause_type": "use_restriction",
+      "priority": 10,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["use", "purpose", "evaluate"] },
+      "severity": "high",
+      "explanation_template": "The agreement does not clearly limit use of Confidential Information to the stated evaluation purpose.",
+      "comment_template": "Add a purpose-limited use restriction tied to the transaction evaluation.",
+      "fallback_language": "Recipient may use Confidential Information solely to evaluate and negotiate the contemplated transaction and for no other purpose."
+    },
+    {
+      "id": "residuals",
+      "title": "Residuals carve-out is present",
+      "issue_type": "residuals",
+      "clause_type": "residuals",
+      "priority": 9,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["residual", "unaided memory"] },
+      "severity": "high",
+      "explanation_template": "The agreement includes a residuals or unaided-memory carve-out that may undercut confidentiality protection.",
+      "comment_template": "Review whether the residuals carve-out should be deleted or narrowed."
+    },
+    {
+      "id": "compelled_disclosure",
+      "title": "Compelled disclosure process is missing",
+      "issue_type": "compelled_disclosure",
+      "clause_type": "legal_process",
+      "priority": 8,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["required by law", "notice", "protective order"] },
+      "severity": "medium",
+      "explanation_template": "The agreement does not appear to require notice and cooperation before compelled disclosure.",
+      "comment_template": "Add notice and protective-order cooperation language for compelled disclosure.",
+      "fallback_language": "If Recipient is required by law to disclose Confidential Information, Recipient will, to the extent legally permitted, give prompt notice and reasonably cooperate in seeking confidential treatment or a protective order."
+    },
+    {
+      "id": "return_destroy",
+      "title": "Return or destruction obligation is missing",
+      "issue_type": "return_destroy",
+      "clause_type": "return_destroy",
+      "priority": 7,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["return", "destroy", "copies"] },
+      "severity": "medium",
+      "explanation_template": "The agreement does not clearly require return or destruction of Confidential Information and copies.",
+      "comment_template": "Add a return/destroy obligation at the disclosing party's request or on termination of discussions.",
+      "fallback_language": "Upon Discloser's request, Recipient will promptly return or destroy Confidential Information and all copies, except for automatically created backup copies retained under standard security procedures."
+    },
+    {
+      "id": "term_survival",
+      "title": "Confidentiality survival period is missing",
+      "issue_type": "term_survival",
+      "clause_type": "term",
+      "priority": 6,
+      "action_type": "comment",
+      "trigger": { "mode": "missing", "search_terms": ["survive", "years", "term"] },
+      "severity": "medium",
+      "explanation_template": "The agreement does not clearly state how long confidentiality obligations survive.",
+      "comment_template": "Add an express survival period for confidentiality obligations."
+    },
+    {
+      "id": "assignment",
+      "title": "Assignment restriction is present",
+      "issue_type": "assignment",
+      "clause_type": "assignment",
+      "priority": 5,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["assign", "change of control"] },
+      "severity": "low",
+      "explanation_template": "The agreement includes an assignment or change-of-control restriction that should be checked for affiliate or reorganization carve-outs.",
+      "comment_template": "Consider adding a carve-out for internal reorganizations or affiliate assignments."
+    }
+  ]
+}

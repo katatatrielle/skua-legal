@@ -18,8 +18,8 @@ The v1 product has two user surfaces:
 
 The repo already contains an early web diligence slice:
 
-- `apps/review` is the current Next.js review workspace
-- `services/dd-api` is the current FastAPI orchestration service
+- `apps/web` is the current Next.js review workspace
+- `services/api` is the current FastAPI orchestration service
 - `packages/playbooks` already stores editable YAML files
 - `packages/schemas` already defines shared contracts
 
@@ -67,9 +67,9 @@ The current codebase is a useful seed, not throwaway scaffolding.
 
 ### What already exists
 
-- `services/dd-api` exposes workspaces, uploads, issues, and first-pass outputs.
-- `services/dd-api/app/storage.py` uses SQLite tables for `workspaces`, `documents`, `document_pages`, and `issues`.
-- `apps/review` already renders a legal-workflow review surface with filters, memo sections, and upload controls.
+- `services/api` exposes workspaces, uploads, issues, and first-pass outputs.
+- `services/api/app/storage.py` uses SQLite tables for `workspaces`, `documents`, `document_pages`, and `issues`.
+- `apps/web` already renders a legal-workflow review surface with filters, memo sections, and upload controls.
 - `packages/playbooks` already proves the "editable rules as files" direction.
 
 ### What is still missing
@@ -889,7 +889,7 @@ Indexes: `(organization_id, created_at desc)`, `(target_type, target_id)`
 
 ### Phase A
 
-- keep `apps/review` and `services/dd-api`
+- keep `apps/web` and `services/api`
 - add new tables conceptually in docs and shared schemas first
 - rename "workspace" in UI copy to "project" only when backend adapter exists
 

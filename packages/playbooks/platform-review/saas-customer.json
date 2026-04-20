@@ -1,0 +1,84 @@
+{
+  "id": "pb-saas-customer-v1",
+  "name": "SaaS Customer-Side v1",
+  "version": "1.0.0",
+  "contract_type": "saas_agreement",
+  "represented_party": "customer",
+  "issue_rules": [
+    {
+      "id": "training_rights",
+      "title": "Vendor data-use or training rights are present",
+      "issue_type": "data_use",
+      "clause_type": "customer_data",
+      "priority": 10,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["train", "machine learning", "usage data", "analytics"] },
+      "severity": "high",
+      "explanation_template": "The agreement appears to grant vendor rights to use customer data, usage data, or model-training data.",
+      "comment_template": "Review whether customer data use should be limited to providing and securing the service."
+    },
+    {
+      "id": "dpa_subprocessors",
+      "title": "DPA or subprocessor controls are missing",
+      "issue_type": "privacy",
+      "clause_type": "data_processing",
+      "priority": 9,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["data processing", "subprocessor", "personal data"] },
+      "severity": "high",
+      "explanation_template": "The agreement does not appear to address data processing terms or subprocessor controls adequately.",
+      "comment_template": "Add DPA-style processing restrictions and subprocessor notice obligations.",
+      "fallback_language": "Vendor will process Customer Personal Data only to provide the Services, will impose materially equivalent obligations on approved subprocessors, and will provide advance notice of any new subprocessors handling Customer Personal Data."
+    },
+    {
+      "id": "security_incident_notice",
+      "title": "Security incident notice timing is missing",
+      "issue_type": "security",
+      "clause_type": "security",
+      "priority": 8,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["security incident", "breach", "notify"] },
+      "severity": "high",
+      "explanation_template": "The agreement does not appear to define a vendor security-incident notice obligation.",
+      "comment_template": "Add prompt breach or security incident notification language.",
+      "fallback_language": "Vendor will notify Customer without undue delay, and in any event within seventy-two hours, after confirming a Security Incident affecting Customer Data."
+    },
+    {
+      "id": "suspension",
+      "title": "Service suspension rights are broad",
+      "issue_type": "suspension",
+      "clause_type": "suspension",
+      "priority": 7,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["suspend", "disable access", "immediate suspension"] },
+      "severity": "medium",
+      "explanation_template": "The agreement includes service suspension rights that should be checked for notice and cure limitations.",
+      "comment_template": "Review whether suspension requires prior notice except in urgent security situations."
+    },
+    {
+      "id": "data_export",
+      "title": "Data export or deletion rights are missing",
+      "issue_type": "data_export",
+      "clause_type": "termination",
+      "priority": 6,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["export", "retrieve", "delete customer data"] },
+      "severity": "medium",
+      "explanation_template": "The agreement does not appear to provide a clear data export and deletion path at termination.",
+      "comment_template": "Add post-termination data export and deletion commitments.",
+      "fallback_language": "For at least thirty days after expiration or termination, Vendor will make Customer Data available for export in a commonly used machine-readable format and will delete retained Customer Data after the export period, except as required by law."
+    },
+    {
+      "id": "renewal_pricing",
+      "title": "Renewal or price increase language is present",
+      "issue_type": "pricing",
+      "clause_type": "fees",
+      "priority": 5,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["price increase", "renewal term", "increase fees"] },
+      "severity": "medium",
+      "explanation_template": "The agreement appears to permit renewal pricing changes or price increases that should be reviewed.",
+      "comment_template": "Review whether price increases are capped or require advance notice."
+    }
+  ]
+}

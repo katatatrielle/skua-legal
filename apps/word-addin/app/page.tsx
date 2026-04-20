@@ -32,9 +32,9 @@ export default async function HomePage({
     : resolved_search_params.mode;
   const initial_tab =
     tab_param === "ask" ||
-    tab_param === "draft" ||
-    tab_param === "playbooks" ||
-    tab_param === "standards"
+    tab_param === "revise" ||
+    tab_param === "saved" ||
+    tab_param === "settings"
       ? tab_param
       : "review";
   const initial_scope =

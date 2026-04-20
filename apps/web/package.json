@@ -1,0 +1,26 @@
+{
+  "name": "@skua/web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Thin support web app for Skua",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next build >/dev/null && tsc --noEmit",
+    "typecheck": "next build >/dev/null && tsc --noEmit"
+  },
+  "dependencies": {
+    "@skua/sdk": "file:../../packages/sdk",
+    "@skua/schemas": "file:../../packages/schemas",
+    "next": "^15.3.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -14,6 +14,17 @@ import type {
   LibrarySearchRequest,
   QueuedJobRequest,
   PlaybookSavedNoteRecord,
+  PlatformAnchorRelocationRequest,
+  PlatformAnchorRelocationResult,
+  PlatformDocumentIngestRecord,
+  PlatformPlaybookRecord,
+  PlatformReviewRunCreateRequest,
+  PlatformReviewRunRecord,
+  PlatformDocumentSearchRequest,
+  PlatformDocumentSearchResult,
+  PlatformDocumentVersionDetailRecord,
+  PlatformDocumentVersionRecord,
+  PlatformSelectionIngestRequest,
   ProjectCreateRequest,
   ProjectRecord,
   QueryRunCreateRequest,
@@ -91,6 +102,125 @@ export class DdApiClient {
 
   async get_workspace(workspace_id: string): Promise<WorkspaceDetail> {
     return this.fetch_json<WorkspaceDetail>(`/api/v1/workspaces/${workspace_id}`);
+  }
+
+  async list_platform_document_versions(workspace_id: string): Promise<PlatformDocumentVersionRecord[]> {
+    return this.fetch_json<PlatformDocumentVersionRecord[]>(
+      `/api/v1/platform/workspaces/${workspace_id}/document-versions`
+    );
+  }
+
+  async upload_platform_documents(
+    payload: {
+      workspace_id: string;
+      matter_id?: string | null;
+      source_kind?: string;
+      files: Array<{ filename: string; content: Blob | Uint8Array | ArrayBuffer | string }>;
+    }
+  ): Promise<PlatformDocumentIngestRecord[]> {
+    const form = new FormData();
+    form.set("workspace_id", payload.workspace_id);
+    if (payload.matter_id) {
+      form.set("matter_id", payload.matter_id);
+    }
+    form.set("source_kind", payload.source_kind ?? "web_upload");
+    for (const file of payload.files) {
+      const blob_part: BlobPart =
+        typeof file.content === "string"
+          ? file.content
+          : file.content instanceof ArrayBuffer
+            ? (file.content as BlobPart)
+            : (file.content as unknown as BlobPart);
+      const blob =
+        file.content instanceof Blob
+          ? file.content
+          : new Blob([blob_part]);
+      form.append("files", blob, file.filename);
+    }
+    return this.fetch_json<PlatformDocumentIngestRecord[]>("/api/v1/platform/documents/upload", {
+      method: "POST",
+      body: form
+    });
+  }
+
+  async upload_platform_selection(
+    payload: PlatformSelectionIngestRequest
+  ): Promise<PlatformDocumentIngestRecord> {
+    return this.fetch_json<PlatformDocumentIngestRecord>("/api/v1/platform/documents/selection", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async get_platform_document_version(
+    document_version_id: string
+  ): Promise<PlatformDocumentVersionDetailRecord> {
+    return this.fetch_json<PlatformDocumentVersionDetailRecord>(
+      `/api/v1/platform/document-versions/${document_version_id}`
+    );
+  }
+
+  async search_platform_document(
+    document_version_id: string,
+    payload: PlatformDocumentSearchRequest
+  ): Promise<PlatformDocumentSearchResult[]> {
+    return this.fetch_json<PlatformDocumentSearchResult[]>(
+      `/api/v1/platform/document-versions/${document_version_id}/search`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  async relocate_platform_anchor(
+    payload: PlatformAnchorRelocationRequest
+  ): Promise<PlatformAnchorRelocationResult> {
+    return this.fetch_json<PlatformAnchorRelocationResult>("/api/v1/platform/anchors/relocate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async list_platform_playbooks(workspace_id: string): Promise<PlatformPlaybookRecord[]> {
+    return this.fetch_json<PlatformPlaybookRecord[]>(
+      `/api/v1/platform/playbooks?workspace_id=${encodeURIComponent(workspace_id)}`
+    );
+  }
+
+  async create_platform_review_run(
+    payload: PlatformReviewRunCreateRequest
+  ): Promise<PlatformReviewRunRecord> {
+    return this.fetch_json<PlatformReviewRunRecord>("/api/v1/platform/review-runs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async get_platform_review_run(review_run_id: string): Promise<PlatformReviewRunRecord> {
+    return this.fetch_json<PlatformReviewRunRecord>(
+      `/api/v1/platform/review-runs/${review_run_id}`
+    );
+  }
+
+  async list_platform_document_review_runs(
+    document_version_id: string
+  ): Promise<PlatformReviewRunRecord[]> {
+    return this.fetch_json<PlatformReviewRunRecord[]>(
+      `/api/v1/platform/document-versions/${document_version_id}/review-runs`
+    );
   }
 
   async list_projects(): Promise<ProjectRecord[]> {
@@ -479,4 +609,8 @@ export class DdApiClient {
 
 export function create_dd_api_client(options?: DdApiClientOptions): DdApiClient {
   return new DdApiClient(options);
+}
+
+export function create_api_client(options?: DdApiClientOptions): DdApiClient {
+  return create_dd_api_client(options);
 }

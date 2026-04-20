@@ -443,6 +443,6 @@ Interaction notes:
 
 - Build the pane as a React app inside `apps/word-addin`.
 - Use Office.js only in a thin adapter layer so the bulk of state and UI logic remains testable in plain React.
-- Keep the visual language close to the existing `apps/review` product tone: editorial, calm, and legal-workflow oriented.
+- Keep the visual language close to the existing `apps/web` product tone: editorial, calm, and legal-workflow oriented.
 - Favor inline disclosure over modal stacks. A narrow pane cannot sustain deep modal nesting well.
 - Persist local pane state per document so reopening the pane returns the user to the last active suggestion or tab.
