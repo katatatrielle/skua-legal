@@ -22,7 +22,7 @@ Current responsibilities:
 ## Run
 
 ```bash
-cd /Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api
+cd /path/to/skua/services/dd-api
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -83,9 +83,9 @@ uvicorn app.main:app --reload
 
 ## Notes
 
-- Playbooks are loaded directly from `/Users/katerinamcmullen/Documents/GitHub/skua/packages/playbooks`.
-- Uploaded workspaces are stored in local SQLite at `/Users/katerinamcmullen/Documents/GitHub/skua/data/skua.db`.
-- Uploaded files are stored under `/Users/katerinamcmullen/Documents/GitHub/skua/uploads`.
+- Playbooks are loaded directly from `packages/playbooks`.
+- Uploaded workspaces are stored in local SQLite at `data/skua.db`.
+- Uploaded files are stored under `uploads/`.
 - The demo workspace `project-redwood` is read-only; create a new workspace for live uploads.
 - Current issue spotting is heuristic and deterministic. It is a bridge to later prompt-driven extraction jobs.
 - The review-run endpoints currently operate on submitted selection text from the Word add-in. Suggestion actions now also persist back into the same review run record, and the API keeps a lightweight suggestion event log with client messages and post-apply anchor context.
@@ -96,9 +96,9 @@ uvicorn app.main:app --reload
 - Draft runs are persisted and queue-backed too, so the Word add-in can submit a drafting request, poll the result, and receive adjusted text plus precedent-style matches.
 - Library items are now extracted from clause-like upload units, keep page/source provenance, and support basic document-type, governing-law, counterparty, and document-name filtering.
 - Query runs are persisted and queue-backed as well, so the web app can submit a multi-document question list, poll for completion, render a table, and export it as CSV.
-- Workflow templates are loaded from `/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows`, and workflow runs now generate DD reports with memo markdown, exceptions, and document summaries.
+- Workflow templates are loaded from `packages/workflows`, and workflow runs now generate DD reports with memo markdown, exceptions, and document summaries.
 - Workflow templates now also define workbook sheets, memo sections, and artifact variants, so export composition is template-driven instead of fixed in code.
-- Standards templates are loaded from `/Users/katerinamcmullen/Documents/GitHub/skua/packages/standards`, and standards runs now compare submitted clause text against a file-backed house standard with coverage, missing-clause, and weak-clause output.
+- Standards templates are loaded from `packages/standards`, and standards runs now compare submitted clause text against a file-backed house standard with coverage, missing-clause, and weak-clause output.
 - Workflow runs can now export their current results as multi-sheet `.xlsx` artifacts with results, citations, report sections, and history.
 - DD reports can export richer memo `.docx` artifacts with metadata, exceptions, document summaries, and report history sections.
 - DD reports can now be edited after generation, workflow row corrections can regenerate report content from reviewer-adjusted cells, and both layers keep lightweight append-only event history with change summaries for reviewer/system changes.
