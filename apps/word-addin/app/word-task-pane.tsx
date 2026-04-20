@@ -8,13 +8,17 @@ import type {
   DraftRunRecord,
   PlaybookRecord,
   PlaybookSavedNoteRecord,
+  SeverityLevel,
   ReviewRunCreateRequest,
   ReviewRunRecord,
   ReviewSuggestionRecord,
   ReviewSuggestionSaveToPlaybookRequest,
+  StandardsFixMode,
+  StandardsMissingClause,
   StandardsRunCreateRequest,
   StandardsRunRecord,
-  StandardsTemplateRecord
+  StandardsTemplateRecord,
+  StandardsWeakClause
 } from "@skua/schemas";
 import {
   ask_run,
@@ -28,6 +32,7 @@ import {
   apply_comment_to_selection,
   apply_redline_to_selection,
   get_word_selection_state,
+  insert_text_after_selection,
   locate_quote_in_document,
   type WordSelectionState
 } from "../lib/office";
@@ -41,11 +46,19 @@ type PlaybookSaveOptions = {
   playbook_check_id?: string | null;
 };
 type StandardsClauseView = {
+  clause_id: string;
   title: string;
   action: string;
-  explanation?: string;
-  suggested_fix?: string;
-  severity?: string;
+  explanation: string;
+  suggested_fix: string;
+  severity: string;
+  fix_mode: StandardsFixMode;
+  matched_excerpt?: string | null;
+};
+type StandardsResultView = {
+  score: number;
+  missing_clauses: StandardsMissingClause[];
+  weak_clauses: StandardsClauseView[];
 };
 type ReviewScopeMode = "selection" | "full_document";
 type DraftMode = "library" | "instruction" | "improve";
@@ -221,21 +234,22 @@ export function WordTaskPane({
         );
       });
 
-  const activeStandardsResult = standardsRun
+  const activeStandardsResult: StandardsResultView = standardsRun
     ? {
         score: standardsRun.coverage_score,
         missing_clauses: standardsRun.missing_clauses,
-        weak_clauses: standardsRun.weak_clauses.map((clause): StandardsClauseView => ({
-          title: clause.title,
-          action: "Show fix",
-          explanation: clause.explanation,
-          suggested_fix: clause.suggested_fix,
-          severity: clause.severity
-        }))
+        weak_clauses: standardsRun.weak_clauses.map(mapStandardsWeakClauseToView)
       }
     : {
         score: standards_result.score,
-        missing_clauses: standards_result.missing_clauses,
+        missing_clauses: standards_result.missing_clauses.map((clause) => ({
+          clause_id: clause.clause_id,
+          title: clause.title,
+          severity: clause.severity as SeverityLevel,
+          explanation: clause.explanation,
+          suggested_fix: clause.suggested_fix,
+          fix_mode: clause.fix_mode as StandardsFixMode
+        })),
         weak_clauses: standards_result.weak_clauses as StandardsClauseView[]
       };
 
@@ -731,6 +745,59 @@ export function WordTaskPane({
       );
     } finally {
       setIsRunningStandards(false);
+    }
+  }
+
+  async function handleLocateStandardsClause(
+    clause: StandardsClauseView | StandardsMissingClause
+  ) {
+    const targetQuote =
+      "matched_excerpt" in clause ? clause.matched_excerpt?.trim() : undefined;
+    if (!targetQuote) {
+      setActionMessage(
+        "This finding does not have a matched excerpt yet. Run Standards on the specific clause you want to remediate."
+      );
+      return;
+    }
+
+    setIsLocatingAnchor(true);
+    try {
+      const result = await locate_quote_in_document(targetQuote);
+      if (result.ok) {
+        await refreshSelection(result.message);
+        return;
+      }
+
+      setActionMessage(result.message);
+    } catch (error) {
+      setStandardsError(
+        error instanceof Error ? error.message : "Unable to locate the standards clause in Word."
+      );
+    } finally {
+      setIsLocatingAnchor(false);
+    }
+  }
+
+  async function handleApplyStandardsFix(
+    clause: StandardsClauseView | StandardsMissingClause
+  ) {
+    setIsApplyingAction(true);
+    try {
+      const result =
+        clause.fix_mode === "insert_after_selection"
+          ? await insert_text_after_selection(clause.suggested_fix)
+          : await apply_redline_to_selection(clause.suggested_fix);
+
+      setActionMessage(result.message);
+      if (result.ok) {
+        await refreshSelection(result.message);
+      }
+    } catch (error) {
+      setStandardsError(
+        error instanceof Error ? error.message : "Unable to apply the standards fix."
+      );
+    } finally {
+      setIsApplyingAction(false);
     }
   }
 
@@ -1757,30 +1824,62 @@ export function WordTaskPane({
 
                 <div className="bullet-panel">
                   <p className="section-label">Missing clauses</p>
-                  <ul>
-                    {activeStandardsResult.missing_clauses.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
+                  {activeStandardsResult.missing_clauses.length === 0 ? (
+                    <div className="empty-state">No required clauses are currently missing.</div>
+                  ) : (
+                    activeStandardsResult.missing_clauses.map((clause) => (
+                      <div className="clause-row" key={clause.clause_id}>
+                        <div className="stack-inline">
+                          <span>{clause.title}</span>
+                          <small>{clause.explanation}</small>
+                          <small>{clause.suggested_fix}</small>
+                        </div>
+                        <div className="mini-actions">
+                          <button
+                            disabled={isApplyingAction}
+                            onClick={() => void handleApplyStandardsFix(clause)}
+                            type="button"
+                          >
+                            {describeStandardsFixAction(clause.fix_mode)}
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="bullet-panel">
                   <p className="section-label">Weak clauses</p>
-                  {activeStandardsResult.weak_clauses.map((clause) => (
-                    <div className="clause-row" key={clause.title}>
+                  {activeStandardsResult.weak_clauses.length === 0 ? (
+                    <div className="empty-state">No weak clauses were flagged in the current selection.</div>
+                  ) : (
+                    activeStandardsResult.weak_clauses.map((clause) => (
+                    <div className="clause-row" key={clause.clause_id}>
                       <div className="stack-inline">
                         <span>{clause.title}</span>
-                        {clause.explanation ? <small>{clause.explanation}</small> : null}
-                        {clause.suggested_fix ? <small>{clause.suggested_fix}</small> : null}
+                        <small>{clause.explanation}</small>
+                        {clause.matched_excerpt ? <small>Matched: {clause.matched_excerpt}</small> : null}
+                        <small>{clause.suggested_fix}</small>
                       </div>
                       <div className="mini-actions">
-                        <button className="ghost" type="button">
+                        <button
+                          className="ghost"
+                          disabled={isLocatingAnchor || !clause.matched_excerpt}
+                          onClick={() => void handleLocateStandardsClause(clause)}
+                          type="button"
+                        >
                           Go to
                         </button>
-                        <button type="button">{clause.action}</button>
+                        <button
+                          disabled={isApplyingAction}
+                          onClick={() => void handleApplyStandardsFix(clause)}
+                          type="button"
+                        >
+                          {clause.action}
+                        </button>
                       </div>
                     </div>
-                  ))}
+                  )))}
                 </div>
 
                 {standardsError ? <p className="error-text">{standardsError}</p> : null}
@@ -2242,6 +2341,23 @@ function mapLivePlaybookToCard(playbook: PlaybookRecord) {
     check_count: playbook.checks.length,
     summary: playbook.description
   };
+}
+
+function mapStandardsWeakClauseToView(clause: StandardsWeakClause): StandardsClauseView {
+  return {
+    clause_id: clause.clause_id,
+    title: clause.title,
+    action: describeStandardsFixAction(clause.fix_mode),
+    explanation: clause.explanation,
+    suggested_fix: clause.suggested_fix,
+    severity: clause.severity,
+    fix_mode: clause.fix_mode,
+    matched_excerpt: clause.matched_excerpt ?? null
+  };
+}
+
+function describeStandardsFixAction(fix_mode: StandardsFixMode) {
+  return fix_mode === "insert_after_selection" ? "Insert fallback" : "Replace selection";
 }
 
 function toggleValue(list: string[], nextValue: string) {

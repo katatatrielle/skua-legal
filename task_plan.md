@@ -4,7 +4,7 @@
 Turn the repo scaffold into a runnable due-diligence slice that supports real workspace creation, PDF/DOCX upload, parsing, persistence, and citation-backed issue generation in the review UI, then extend it with an implementation-ready spec package for the broader Word-first contracts product.
 
 ## Current Phase
-Phase 30
+Phase 31
 
 ## Phases
 
@@ -244,6 +244,13 @@ Phase 30
 - [x] Verify compile/build/tests plus a focused artifact-variant and standards smoke test
 - [x] Update docs and planning files for the new baseline
 - **Status:** complete
+
+### Phase 31: Standards Remediation
+- [x] Add richer house-standard packs and contract-type-specific checks
+- [x] Add clause-level remediation/apply-fix behavior in the Word add-in
+- [x] Add more precise clause matching so standards findings anchor to the right excerpt
+- [x] Verify end-to-end standards remediation behavior
+- **Status:** in progress
 
 ## Key Questions
 1. What is the smallest vertical slice that proves this product direction without overcommitting to later architecture?

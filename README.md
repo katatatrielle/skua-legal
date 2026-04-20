@@ -62,6 +62,7 @@ The repo now also includes a first Word add-in scaffold:
 This is still intentionally lightweight. It uses heuristic extraction and local storage to prove the workflow before Postgres, queues, and model-driven extraction land, but the report/export loop now has a real binary-artifact path, multi-sheet exports, and lightweight diff-aware event history.
 
 Workflow templates now also define export structure directly. The current commercial DD template declares workbook sheets, memo sections, and artifact variants in [packages/workflows/commercial-dd-report.yaml](/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows/commercial-dd-report.yaml:1), and the export builders use that metadata instead of a single hardcoded report layout.
+The Standards surface is now backed by file-based house-standard packs from [packages/standards/commercial-house-standard.yaml](/Users/katerinamcmullen/Documents/GitHub/skua/packages/standards/commercial-house-standard.yaml:1) and a live DD API comparison route.
 
 ## Quick Start
 

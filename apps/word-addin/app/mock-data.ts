@@ -249,17 +249,48 @@ export const playbooks = [
 export const standards_result = {
   score: 73.5,
   missing_clauses: [
-    "Affiliate transfer carve-out",
-    "Data localization fallback"
+    {
+      clause_id: "assignment-affiliate",
+      title: "Affiliate transfer carve-out",
+      severity: "high",
+      explanation: "The selected clause does not include an affiliate or internal reorganization transfer right.",
+      suggested_fix:
+        "Add a carve-out permitting assignment to an affiliate or as part of an internal reorganization without consent.",
+      fix_mode: "insert_after_selection"
+    },
+    {
+      clause_id: "data-localization",
+      title: "Data localization fallback",
+      severity: "medium",
+      explanation: "The current text does not include a Canada-based data residency fallback.",
+      suggested_fix:
+        "Add a fallback requiring customer data to remain in Canada or another approved Canadian-hosted environment.",
+      fix_mode: "insert_after_selection"
+    }
   ],
   weak_clauses: [
     {
+      clause_id: "assignment-clause",
       title: "Assignment clause",
-      action: "Show fix"
+      action: "Replace selection",
+      explanation: "The clause restricts assignment but does not clearly address change-of-control transfers.",
+      suggested_fix:
+        "Neither party may assign this Agreement without prior written consent, except to an affiliate or in connection with a merger, reorganization, or sale of substantially all assets.",
+      severity: "high",
+      fix_mode: "replace_selection",
+      matched_excerpt:
+        "Neither party may assign this Agreement without prior written consent of the other party."
     },
     {
+      clause_id: "limitation-cap",
       title: "Limitation of liability",
-      action: "Insert fix"
+      action: "Replace selection",
+      explanation: "The clause uses liability language but does not define a clear cap structure.",
+      suggested_fix:
+        "Except for excluded claims, each party's aggregate liability under this Agreement will not exceed the fees paid or payable in the 12 months preceding the claim.",
+      severity: "medium",
+      fix_mode: "replace_selection",
+      matched_excerpt: "The parties will be responsible for damages as provided under applicable law."
     }
   ]
 };

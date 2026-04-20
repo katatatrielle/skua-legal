@@ -67,6 +67,7 @@
 - Template-driven export layouts fit the current architecture well because the workflow YAML is already the editable control surface. Extending that file is cleaner than adding another export-only config system.
 - Once layout is template-driven, artifact variants are the natural next step. They let one workflow keep the same extraction logic while producing different buyer/internal deliverable shapes.
 - The Standards tab was one of the last obviously mock-shaped surfaces in the Word add-in. Replacing it with a file-backed comparison run improves product alignment more than further report-format refinement would.
+- The current standards implementation is now on the right backbone, but it is still a scoring pass rather than a full remediation loop. The next meaningful step is clause-level fix insertion, not more scoring permutations.
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -100,6 +101,9 @@
 | Add diff-aware event summaries at write time instead of computing them ad hoc in the UI | The same summary now feeds the workspace history view and the exported artifact appendix, which keeps product behavior consistent. |
 | Keep fallback export layouts in code even after making workflow artifacts template-driven | This avoids brittle failures if a workflow YAML is older or only partially configured while still letting newer templates control the structure. |
 | Add artifact variants to the workflow YAML instead of branching workflows just for deliverable style | This keeps extraction logic stable while still letting teams choose buyer-full versus executive-brief style output. |
+| Standards remediation should be explicit in the API contract | Returning `fix_mode` and `matched_excerpt` from the backend lets the Word add-in apply the right action without inventing its own remediation heuristics. |
+| Standards JSON blobs need tolerant hydration while the schema evolves | Older SQLite rows stored only clause labels or minimal dicts, so backward-compatible record building prevents existing runs from breaking. |
+| Standards template breadth is cheap once the loader scans a directory | Adding `vendor-paper-tightened.yaml` broadened coverage without introducing any new configuration surface. |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -108,6 +112,7 @@
 | FastAPI smoke tests required `httpx` in addition to the runtime stack | Added a `dev` extra and verified endpoints with `TestClient`. |
 | YAML numeric parsing conflicted with strict string version fields | Normalized playbook version values to quoted strings. |
 | Next.js app-router typing was stricter than the first `searchParams` signature | Updated the page prop typing to match generated Next types. |
+| Office typings did not expose `InsertLocation.after`, and `insertText(..., \"After\")` did not return a `Range` | Switched to the literal `"After"` API value and returned an anchor snapshot from the inserted fix text instead of relying on a typed range object. |
 
 ## Resources
 - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`

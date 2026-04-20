@@ -60,6 +60,11 @@ class DraftMode(StrEnum):
     IMPROVE = "improve"
 
 
+class StandardsFixMode(StrEnum):
+    REPLACE_SELECTION = "replace_selection"
+    INSERT_AFTER_SELECTION = "insert_after_selection"
+
+
 class JobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -651,6 +656,9 @@ class StandardsClauseTemplate(SkuaModel):
     severity: SeverityLevel
     required_terms: list[str]
     recommended_fix: str
+    preferred_fix_mode: StandardsFixMode | None = None
+    guidance: str | None = None
+    contract_types: list[DocumentType] | None = None
 
 
 class StandardsTemplateRecord(SkuaModel):
@@ -670,11 +678,23 @@ class StandardsRunCreateRequest(SkuaModel):
     selection_anchor: DocumentAnchor | None = None
 
 
-class StandardsWeakClause(SkuaModel):
+class StandardsMissingClause(SkuaModel):
+    clause_id: str
     title: str
     severity: SeverityLevel
     explanation: str
     suggested_fix: str
+    fix_mode: StandardsFixMode
+
+
+class StandardsWeakClause(SkuaModel):
+    clause_id: str
+    title: str
+    severity: SeverityLevel
+    explanation: str
+    suggested_fix: str
+    fix_mode: StandardsFixMode
+    matched_excerpt: str | None = None
 
 
 class StandardsRunRecord(SkuaModel):
@@ -685,7 +705,7 @@ class StandardsRunRecord(SkuaModel):
     comparison_mode: str
     status: JobStatus | str
     coverage_score: float
-    missing_clauses: list[str]
+    missing_clauses: list[StandardsMissingClause]
     weak_clauses: list[StandardsWeakClause]
     created_at: str
     completed_at: str | None = None

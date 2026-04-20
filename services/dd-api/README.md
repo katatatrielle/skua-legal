@@ -98,7 +98,7 @@ uvicorn app.main:app --reload
 - Query runs are persisted and queue-backed as well, so the web app can submit a multi-document question list, poll for completion, render a table, and export it as CSV.
 - Workflow templates are loaded from `/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows`, and workflow runs now generate DD reports with memo markdown, exceptions, and document summaries.
 - Workflow templates now also define workbook sheets, memo sections, and artifact variants, so export composition is template-driven instead of fixed in code.
-- Standards templates are loaded from `/Users/katerinamcmullen/Documents/GitHub/skua/packages/standards`, and standards runs now compare submitted clause text against a file-backed house standard.
+- Standards templates are loaded from `/Users/katerinamcmullen/Documents/GitHub/skua/packages/standards`, and standards runs now compare submitted clause text against a file-backed house standard with coverage, missing-clause, and weak-clause output.
 - Workflow runs can now export their current results as multi-sheet `.xlsx` artifacts with results, citations, report sections, and history.
 - DD reports can export richer memo `.docx` artifacts with metadata, exceptions, document summaries, and report history sections.
 - DD reports can now be edited after generation, workflow row corrections can regenerate report content from reviewer-adjusted cells, and both layers keep lightweight append-only event history with change summaries for reviewer/system changes.
