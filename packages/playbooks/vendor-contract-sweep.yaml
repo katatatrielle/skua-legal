@@ -1,0 +1,35 @@
+name: vendor-contract-sweep
+version: "0.1"
+description: Vendor agreement sweep focused on continuity, termination, data commitments, and liability allocation.
+checks:
+  - id: assignment
+    label: Assignment
+    question: Does the vendor agreement restrict assignment or change of control?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: termination_assistance
+    label: Termination assistance
+    question: Does the agreement require transition services, data return, or exit assistance on termination?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: service_levels
+    label: Service levels
+    question: Does the agreement include material uptime, service credit, or operational commitments?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: privacy_security
+    label: Privacy and security
+    question: Does the vendor undertake material data-processing, security incident, or transfer obligations?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: liability
+    label: Liability and indemnity
+    question: Does the agreement contain uncapped exposure, privacy carve-outs, or broad indemnities?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+required_citations:
+  - document_id
+  - page_start
+  - page_end
+  - section_heading
+  - quoted_snippet

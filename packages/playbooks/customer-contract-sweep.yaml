@@ -1,0 +1,35 @@
+name: customer-contract-sweep
+version: "0.1"
+description: Customer agreement sweep focused on revenue, assignment, termination, and unusual commercial constraints.
+checks:
+  - id: assignment
+    label: Assignment
+    question: Does the customer agreement restrict assignment or require consent for assignment?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: change_of_control
+    label: Change of control
+    question: Does the agreement require customer consent on a direct or indirect change of control?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: auto_renewal
+    label: Auto-renewal
+    question: Does the agreement renew automatically or require a non-standard notice window to avoid renewal?
+    output: enum[yes,no,unclear]
+    severity_if_yes: medium
+  - id: termination_rights
+    label: Termination
+    question: Does the customer have unusual suspension, termination, refund, or step-in rights?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+  - id: pricing_restrictions
+    label: Pricing restrictions
+    question: Does the agreement include MFN, exclusivity, pricing locks, or channel restrictions?
+    output: enum[yes,no,unclear]
+    severity_if_yes: high
+required_citations:
+  - document_id
+  - page_start
+  - page_end
+  - section_heading
+  - quoted_snippet

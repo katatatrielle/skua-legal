@@ -1,0 +1,6 @@
+{
+  "name": "@skua/prompts",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Versioned prompt assets for Skua Legal"
+}
