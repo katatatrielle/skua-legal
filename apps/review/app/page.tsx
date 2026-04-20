@@ -36,10 +36,10 @@ export default async function HomePage({
         <main className="page-shell">
           <section className="hero-panel">
             <div className="hero-copy">
-              <p className="eyebrow">Skua Legal / Review Surface</p>
+              <p className="eyebrow">Skua Legal / Web Console</p>
               <h1>No workspace data yet</h1>
               <p className="hero-text">
-                Start the DD API and create a workspace to begin uploading contracts.
+                Start the backend API and create a workspace to begin uploading contracts.
               </p>
             </div>
           </section>
@@ -70,8 +70,8 @@ export default async function HomePage({
       <main className="page-shell">
         <section className="hero-panel">
           <div className="hero-copy">
-            <p className="eyebrow">Skua Legal / Review Surface</p>
-            <h1>Review app is ready for the DD API</h1>
+            <p className="eyebrow">Skua Legal / Web Console</p>
+            <h1>Web console is ready for the backend API</h1>
             <p className="hero-text">
               Start the FastAPI service at <code>http://127.0.0.1:8000</code> or set
               <code> DD_API_BASE_URL</code> for this app.

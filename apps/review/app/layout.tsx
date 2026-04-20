@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Skua Review",
-  description: "Commercial DD review surface for Skua Legal"
+  title: "Skua Console",
+  description: "Thin web console for Skua Legal"
 };
 
 export default function RootLayout({

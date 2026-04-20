@@ -1,8 +1,16 @@
 # Word Add-in App
 
-This app is the first scaffold for the Skua Word add-in experience.
+This app is the main product surface for the solo-first Skua direction.
 
-Current responsibilities:
+Target role in the product:
+
+- review a full document or current selection
+- ask cited questions about the agreement
+- revise clause language with source grounding
+- apply comments or tracked changes inside Word
+- save and reuse preferred fallback language
+
+Current prototype responsibilities:
 
 - render a task-pane-sized product shell
 - prove the Review, Ask, Draft, Playbooks, and Standards tab structure
@@ -34,6 +42,8 @@ The manifest currently:
 - adds Home-tab ribbon buttons for Open Pane, Review Selection, Review Document, Ask, Draft from Library, Refresh Anchors, and Export to Project
 - routes those buttons to the task pane with tab query parameters
 
+The command labels and query params still reflect earlier prototype naming. Those runtime names remain in place for compatibility during the product pivot.
+
 ## Current Office integration
 
 The thin Office adapter lives at:
@@ -64,6 +74,12 @@ Current live review behaviors:
 - post real Ask runs to the DD API and poll for worker-completed cited answers
 - post real Draft runs to the DD API and poll for worker-completed clause results plus library matches
 - use richer local state for Playbooks so it aligns more closely with the wireframe docs
+
+## Transition Notes
+
+- `Draft` is the current runtime name for what the product direction increasingly treats as `Revise`.
+- Clause-bank and saved-fallback behavior is still partial; parts of that loop currently land in playbook-note memory and library search rather than a dedicated clause-bank surface.
+- Standards and deeper playbook authoring remain prototype-level support flows, not a complete target-state UX.
 
 ## Notes
 

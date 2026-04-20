@@ -1,17 +1,29 @@
 # Review App
 
-This app is the diligence review surface.
+This app is the transitional web console for Skua Legal.
 
-Current responsibilities:
+Target role in the product:
 
-- spreadsheet-style issue grid
-- filters by issue type, severity, status, and document type
-- seed memo draft and exceptions list display
-- highlight cards for top diligence issues
+- auth and account entry
+- workspace and matter context
+- playbook management
+- clause-bank and saved fallback management
+- run history, audit visibility, and spend-style controls
+
+Current prototype responsibilities still include older review-workspace behavior:
+
+- spreadsheet-style issue grid and source inspection
 - create-workspace and upload controls for real files
-- queue-backed multi-document query runs with table output and CSV export
-- queue-backed DD workflow runs with generated memo drafts, exceptions, and document summaries
-- reviewer correction flows for extracted workflow cells plus memo/exceptions editing, multi-sheet workflow `.xlsx` export, memo `.docx` export, and visible edit history with diff summaries
+- project-backed query history and CSV export
+- legacy workflow and DD report panels
+- reviewer correction flows and artifact export history
+
+## Transition Notes
+
+- `apps/review` remains the filesystem path for compatibility.
+- The current UI still contains DD- and workflow-oriented prototype panels.
+- Those legacy panels are no longer the target product thesis; they are transitional scaffolding while the console narrows around solo-first contract review support.
+- The reusable foundations here are workspace switching, upload flows, run history, and project-backed persistence.
 
 ## Run
 
@@ -22,10 +34,6 @@ DD_API_BASE_URL=http://127.0.0.1:8000 npm run dev:review
 
 ## Notes
 
-- The app expects the DD API to expose at least the `project-redwood` seed workspace.
-- Real uploads require creating a non-demo workspace first.
-- Styling is intentionally more editorial than dashboard-generic so the review surface has a distinct legal-workflow feel.
-- Query runs are project-backed, so the app now loads canonical project documents and query history alongside the older workspace review surface.
-- Workflow runs reuse the same project/job layer, so the review app can now show saved-style diligence sweeps and report output without leaving the workspace.
-- The current workflow panel supports cell correction, report editing, rerun, multi-sheet workflow `.xlsx` download, memo `.docx` download, and a lightweight history view for saved workflow/report events with change summaries.
-- Export structure is now driven by the workflow template, and the current workflow panel can choose among template-declared artifact variants before running.
+- The app expects the backend at `DD_API_BASE_URL`; that env var name stays unchanged for now.
+- The app still expects the transitional backend service under `services/dd-api`.
+- The seed workspace `project-redwood` remains available for local prototype testing.

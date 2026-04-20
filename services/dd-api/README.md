@@ -1,6 +1,8 @@
 # DD API
 
-FastAPI service for due diligence orchestration.
+FastAPI service for Skua Legal's backend API.
+
+The filesystem path remains `services/dd-api` for compatibility, but the target role is a contract-review backend for the Word-first product.
 
 Current responsibilities:
 
@@ -18,6 +20,14 @@ Current responsibilities:
 - synchronous PDF/DOCX parsing for uploaded files
 - issue filtering by severity, status, type, and document type
 - first-pass memo and exceptions-list output
+
+Target responsibilities in the solo-first architecture:
+
+- workspace, matter, and document persistence
+- document ingest, parsing, and segment indexing
+- review runs, findings, and citations
+- ask runs, revise runs, and clause-memory retrieval
+- provider configuration, usage tracking, and audit logging
 
 ## Run
 
@@ -104,3 +114,9 @@ uvicorn app.main:app --reload
 - DD reports can now be edited after generation, workflow row corrections can regenerate report content from reviewer-adjusted cells, and both layers keep lightweight append-only event history with change summaries for reviewer/system changes.
 - Existing local databases are backfilled on startup so older `workspaces` and `documents` gain matching canonical `projects` and `document_versions` automatically.
 - Queued jobs are stored in the same SQLite database for now, and `services/worker/runner.py` claims and processes them one at a time for local development.
+
+## Transition Notes
+
+- DD-oriented routes and workflow/report features remain in place as legacy prototype slices.
+- The governing product direction is Word-first contract review for solos and very small firms.
+- Runtime names such as `dd-api`, existing route groups, and `DD_API_BASE_URL` stay unchanged during this documentation reset.

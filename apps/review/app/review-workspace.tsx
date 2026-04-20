@@ -95,11 +95,11 @@ export function ReviewWorkspace({
     <main className="page-shell">
       <section className="hero-panel">
         <div className="hero-copy">
-          <p className="eyebrow">Skua Legal / Review Surface</p>
+          <p className="eyebrow">Skua Legal / Web Console</p>
           <h1>{workspace.workspace.name}</h1>
           <p className="hero-text">
-            Create a deal workspace, upload PDF or DOCX contracts, review first-pass
-            cited issues, and run cross-document queries without leaving the project.
+            Manage uploaded contracts, inspect cited review output, and use the
+            transitional console while the product narrows around the Word-first flow.
           </p>
           <p className="muted-text">{workspace.workspace.stage}</p>
         </div>
@@ -205,7 +205,7 @@ export function ReviewWorkspace({
           <div className="stack">
             <div>
               <p className="section-label">Highlights</p>
-              <h2>Top diligence points</h2>
+              <h2>Top review points</h2>
             </div>
             <ul className="text-list">
               {workspace.highlights.map((highlight) => (
