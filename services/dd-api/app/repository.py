@@ -74,6 +74,8 @@ from app.models import (
     ReviewSuggestionRecord,
     ReviewType,
     SeverityLevel,
+    StandardsFixMode,
+    StandardsMissingClause,
     StandardsRunCreateRequest,
     StandardsRunRecord,
     StandardsTemplateRecord,
@@ -855,29 +857,55 @@ def create_standards_run(payload: StandardsRunCreateRequest) -> StandardsRunReco
         raise ValueError("Selection text is required for standards comparison.")
 
     weak_clauses: list[StandardsWeakClause] = []
-    missing_clauses: list[str] = []
+    missing_clauses: list[StandardsMissingClause] = []
     normalized_text = selection_text.lower()
     matched_count = 0
 
     for clause in standards_template.required_clauses:
         clause_terms = [term.lower() for term in clause.required_terms]
         matched_terms = [term for term in clause_terms if term in normalized_text]
+        fix_mode = clause.preferred_fix_mode or (
+            StandardsFixMode.REPLACE_SELECTION
+            if matched_terms
+            else StandardsFixMode.INSERT_AFTER_SELECTION
+        )
         if matched_terms:
             matched_count += 1
             if len(matched_terms) < len(clause_terms):
+                matched_excerpt = find_matching_excerpt(selection_text, matched_terms[0])
                 weak_clauses.append(
                     StandardsWeakClause(
+                        clause_id=clause.id,
                         title=clause.label,
                         severity=clause.severity,
                         explanation=(
                             f"The clause partially matches the house position but is missing "
                             f"{len(clause_terms) - len(matched_terms)} expected concept(s)."
+                            + (
+                                f" {clause.guidance.strip()}"
+                                if clause.guidance
+                                else ""
+                            )
                         ),
                         suggested_fix=clause.recommended_fix,
+                        fix_mode=fix_mode,
+                        matched_excerpt=matched_excerpt,
                     )
                 )
         else:
-            missing_clauses.append(clause.label)
+            missing_clauses.append(
+                StandardsMissingClause(
+                    clause_id=clause.id,
+                    title=clause.label,
+                    severity=clause.severity,
+                    explanation=(
+                        "The selected text does not include the required house-standard concept."
+                        + (f" {clause.guidance.strip()}" if clause.guidance else "")
+                    ),
+                    suggested_fix=clause.recommended_fix,
+                    fix_mode=fix_mode,
+                )
+            )
 
     total_clause_count = max(len(standards_template.required_clauses), 1)
     weak_penalty = len(weak_clauses) * 0.5
@@ -905,7 +933,7 @@ def create_standards_run(payload: StandardsRunCreateRequest) -> StandardsRunReco
                 json.dumps(payload.selection_anchor.model_dump()) if payload.selection_anchor else None,
                 JobStatus.SUCCEEDED,
                 coverage_score,
-                json.dumps(missing_clauses),
+                json.dumps([clause.model_dump() for clause in missing_clauses]),
                 json.dumps([clause.model_dump() for clause in weak_clauses]),
                 created_at,
                 created_at,
@@ -4646,6 +4674,7 @@ def build_workflow_run_record(row: object) -> WorkflowRunRecord:
 
 
 def build_standards_run_record(row: object) -> StandardsRunRecord:
+    missing_entries = json.loads(row["missing_clauses_json"])
     return StandardsRunRecord(
         id=row["id"],
         project_id=row["project_id"],
@@ -4654,14 +4683,71 @@ def build_standards_run_record(row: object) -> StandardsRunRecord:
         comparison_mode=row["comparison_mode"],
         status=JobStatus(row["status"]),
         coverage_score=row["coverage_score"],
-        missing_clauses=json.loads(row["missing_clauses_json"]),
+        missing_clauses=[
+            StandardsMissingClause.model_validate(entry)
+            if isinstance(entry, dict)
+            else StandardsMissingClause(
+                clause_id=slugify_title(entry),
+                title=str(entry),
+                severity=SeverityLevel.MEDIUM,
+                explanation="This clause was flagged as missing in an earlier standards run format.",
+                suggested_fix="Review the current clause set and insert the applicable house-standard language.",
+                fix_mode=StandardsFixMode.INSERT_AFTER_SELECTION,
+            )
+            for entry in missing_entries
+        ],
         weak_clauses=[
             StandardsWeakClause.model_validate(entry)
+            if isinstance(entry, dict) and "clause_id" in entry and "fix_mode" in entry
+            else StandardsWeakClause(
+                clause_id=slugify_title(entry["title"] if isinstance(entry, dict) else str(entry)),
+                title=entry["title"] if isinstance(entry, dict) else str(entry),
+                severity=(
+                    SeverityLevel(entry["severity"])
+                    if isinstance(entry, dict) and entry.get("severity")
+                    else SeverityLevel.MEDIUM
+                ),
+                explanation=(
+                    entry.get("explanation", "This clause was flagged in an earlier standards run format.")
+                    if isinstance(entry, dict)
+                    else "This clause was flagged in an earlier standards run format."
+                ),
+                suggested_fix=(
+                    entry.get("suggested_fix", "Review and update this clause to align with the house standard.")
+                    if isinstance(entry, dict)
+                    else "Review and update this clause to align with the house standard."
+                ),
+                fix_mode=StandardsFixMode.REPLACE_SELECTION,
+                matched_excerpt=entry.get("matched_excerpt") if isinstance(entry, dict) else None,
+            )
             for entry in json.loads(row["weak_clauses_json"])
         ],
         created_at=row["created_at"],
         completed_at=row["completed_at"],
     )
+
+
+def find_matching_excerpt(selection_text: str, matched_term: str) -> str:
+    compact_text = selection_text.replace("\r", "\n")
+    candidates = [
+        segment.strip()
+        for segment in re.split(r"(?<=[\.;\n])\s+", compact_text)
+        if segment.strip()
+    ]
+    if not candidates:
+        return selection_text.strip()
+
+    normalized_term = matched_term.lower()
+    for candidate in candidates:
+        if normalized_term in candidate.lower():
+            return candidate
+
+    return candidates[0]
+
+
+def slugify_title(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return normalized or f"clause-{uuid4().hex[:6]}"
 
 
 def build_dd_report_record(row: object) -> DdReportRecord:

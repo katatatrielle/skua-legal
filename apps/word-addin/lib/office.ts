@@ -210,6 +210,56 @@ export async function apply_redline_to_selection(
   }
 }
 
+export async function insert_text_after_selection(text: string): Promise<WordApplyResult> {
+  if (!has_office_runtime()) {
+    return {
+      ok: false,
+      message:
+        "Office.js is not available in this browser preview, so no insertion was applied."
+    };
+  }
+
+  try {
+    await Office.onReady();
+    const result = await Word.run(async (context) => {
+      const document = context.document;
+      document.load("changeTrackingMode");
+      const selection = document.getSelection();
+
+      await context.sync();
+
+      const original_mode = document.changeTrackingMode;
+      if (original_mode === Word.ChangeTrackingMode.off) {
+        document.changeTrackingMode = Word.ChangeTrackingMode.trackMineOnly;
+      }
+
+      selection.insertText(text, "After");
+      await context.sync();
+
+      if (original_mode === Word.ChangeTrackingMode.off) {
+        document.changeTrackingMode = original_mode;
+        await context.sync();
+      }
+
+      return {
+        ok: true,
+        message:
+          "Inserted the suggested fallback after the current selection. If tracking was off, the add-in temporarily enabled track changes for the edit.",
+        applied_anchor: build_anchor_snapshot(text, null)
+      };
+    });
+    return result;
+  } catch (error) {
+    return {
+      ok: false,
+      message: build_error_message(
+        error,
+        "Unable to insert the suggested text after the current Word selection."
+      )
+    };
+  }
+}
+
 export async function locate_quote_in_document(quote: string): Promise<WordLocateResult> {
   if (!has_office_runtime()) {
     return {

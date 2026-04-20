@@ -27,6 +27,10 @@ export const answer_types = [
   "memo"
 ] as const;
 export const job_statuses = ["queued", "running", "succeeded", "failed", "canceled"] as const;
+export const standards_fix_modes = [
+  "replace_selection",
+  "insert_after_selection"
+] as const;
 export const document_types = [
   "customer_agreement",
   "vendor_agreement",
@@ -49,6 +53,7 @@ export type AnchorReconciliationStatus =
   (typeof anchor_reconciliation_statuses)[number];
 export type AnswerType = (typeof answer_types)[number];
 export type JobStatus = (typeof job_statuses)[number];
+export type StandardsFixMode = (typeof standards_fix_modes)[number];
 export type DocumentType = (typeof document_types)[number];
 
 export interface SourceCitation {
@@ -629,6 +634,9 @@ export interface StandardsClauseTemplate {
   severity: SeverityLevel;
   required_terms: string[];
   recommended_fix: string;
+  preferred_fix_mode?: StandardsFixMode | null;
+  guidance?: string | null;
+  contract_types?: DocumentType[] | null;
 }
 
 export interface StandardsRunCreateRequest {
@@ -639,11 +647,23 @@ export interface StandardsRunCreateRequest {
   selection_anchor?: Omit<DocumentAnchor, "id" | "document_version_id"> | null;
 }
 
-export interface StandardsWeakClause {
+export interface StandardsMissingClause {
+  clause_id: string;
   title: string;
   severity: SeverityLevel;
   explanation: string;
   suggested_fix: string;
+  fix_mode: StandardsFixMode;
+}
+
+export interface StandardsWeakClause {
+  clause_id: string;
+  title: string;
+  severity: SeverityLevel;
+  explanation: string;
+  suggested_fix: string;
+  fix_mode: StandardsFixMode;
+  matched_excerpt?: string | null;
 }
 
 export interface StandardsRunRecord {
@@ -654,7 +674,7 @@ export interface StandardsRunRecord {
   comparison_mode: "house_standard" | "precedent_corpus";
   status: JobStatus | "succeeded";
   coverage_score: number;
-  missing_clauses: string[];
+  missing_clauses: StandardsMissingClause[];
   weak_clauses: StandardsWeakClause[];
   created_at: string;
   completed_at?: string | null;

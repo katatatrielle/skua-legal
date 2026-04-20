@@ -666,6 +666,14 @@
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
+
+### Phase 31: Standards Remediation
+- **Status:** in progress
+- Actions taken:
+  - Established the live Standards comparison path in the Word add-in and set the next implementation target to remediation rather than more export work.
+- Next actions:
+  - Add clause-level fix insertion from standards findings.
+  - Add richer standards packs and tighter excerpt matching.
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/review-suggestions/[suggestionId]/apply/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/review-suggestions/[suggestionId]/dismiss/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/review-suggestions/[suggestionId]/mark-reviewed/route.ts` (created)
@@ -755,6 +763,11 @@
 | Word add-in typecheck after live Standards wiring | `npm run typecheck:word-addin` | Word add-in still typechecks after live Standards routes and UI | Passed after tightening the standards clause view type | pass |
 | Root test script after standards pivot | `npm test` | Workspace checks plus API compile still succeed | Passed on clean serial rerun | pass |
 | Artifact-variant and standards smoke test | Direct repository smoke using `exec_brief` artifact variant plus a standards comparison run | Workbook/docx follow the chosen variant and Standards returns real score/missing/weak output | Passed with workbook sheets `['Key Findings', 'Exceptions', 'History']`, DOCX headings `['Variant Standards Smoke', 'Executive summary', 'Critical findings', 'Exceptions list']`, standards score `12.5`, and missing/weak clause results | pass |
+| Python compile after standards remediation changes | `python3 -m compileall services/dd-api/app` | DD API compiles after richer standards finding metadata and backward-compatible hydration changes | Passed | pass |
+| Word add-in build after standards remediation wiring | `npm run build:word-addin` | Word add-in builds after adding live locate/apply actions and insert-after Office support | Passed | pass |
+| Review app build after shared standards schema widening | `npm run build:review` | Review app still builds after shared schema widening | Passed | pass |
+| Review app TypeScript check after shared standards schema widening | `npm --workspace @skua/review exec -- tsc --noEmit` | Review app TypeScript remains clean after standards schema widening | Passed | pass |
+| Standards remediation smoke test | Direct repository smoke using a temporary project/document version and a standards run | Multiple standards packs load, missing clauses carry explicit fix modes, and weak clauses carry matched excerpts | Passed with `template_ids=['commercial-house-standard', 'vendor-paper-tightened']`, missing fix modes `['insert_after_selection', 'replace_selection']`, and weak excerpt `Neither party may assign this Agreement without prior written consent of the other party.` | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -767,12 +780,13 @@
 | 2026-04-19 | Parallel `npm test` plus standalone Next builds hit the known `.next` file race again | 1 | Treated it as a verification race, kept the successful standalone builds, and reran `npm test` cleanly in isolation. |
 | 2026-04-19 | Parallel `npm test` plus standalone review build hit the known `.next` file race again during template-driven export verification | 1 | Kept the successful standalone builds and reran `npm test` serially in isolation. |
 | 2026-04-19 | Standards UI initially failed typecheck because inline clause rendering widened to `unknown` | 1 | Added an explicit `StandardsClauseView` type and rendered optional fields directly. |
+| 2026-04-20 | New Office insert-after helper initially used unsupported typings for `InsertLocation.after` and assumed `insertText` returned a `Range` | 1 | Switched to the literal `"After"` API value and returned an anchor snapshot built from the inserted text. |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 30: Artifact Variants and Standards Pivot |
-| Where am I going? | Broader house-standard coverage packs and stronger standards/remediation workflows on top of the now-live Standards slice |
-| What's the goal? | Close the artifact work in a reusable way, then pivot back to a more strategically important product surface |
-| What have I learned? | Artifact variants fit cleanly inside workflow YAML, and the Standards tab can be made real without introducing a second orchestration model |
-| What have I done? | Added workflow artifact variants, persisted them through export generation, and replaced the add-in Standards mock with a live standards comparison flow |
+| Where am I? | Phase 31: Standards Remediation |
+| Where am I going? | Deeper standards coverage and higher-fidelity remediation before shifting to provider/admin or retrieval-quality expansion |
+| What's the goal? | Make Standards a real remediation tool, not just a scoring surface |
+| What have I learned? | Standards needs explicit remediation metadata and tolerant JSON hydration to stay stable as the contract evolves |
+| What have I done? | Added a second standards pack, widened standards findings with fix modes and matched excerpts, and wired live locate/apply behavior into the Word add-in |
