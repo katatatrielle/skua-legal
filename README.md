@@ -61,8 +61,8 @@ The repo now also includes a first Word add-in scaffold:
 
 This is still intentionally lightweight. It uses heuristic extraction and local storage to prove the workflow before Postgres, queues, and model-driven extraction land, but the report/export loop now has a real binary-artifact path, multi-sheet exports, and lightweight diff-aware event history.
 
-Workflow templates now also define export structure directly. The current commercial DD template declares workbook sheets, memo sections, and artifact variants in [packages/workflows/commercial-dd-report.yaml](/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows/commercial-dd-report.yaml:1), and the export builders use that metadata instead of a single hardcoded report layout.
-The Standards surface is now backed by file-based house-standard packs from [packages/standards/commercial-house-standard.yaml](/Users/katerinamcmullen/Documents/GitHub/skua/packages/standards/commercial-house-standard.yaml:1) and a live DD API comparison route.
+Workflow templates now also define export structure directly. The current commercial DD template declares workbook sheets, memo sections, and artifact variants in `packages/workflows/commercial-dd-report.yaml`, and the export builders use that metadata instead of a single hardcoded report layout.
+The Standards surface is now backed by file-based house-standard packs from `packages/standards/commercial-house-standard.yaml` and a live DD API comparison route.
 
 ## Quick Start
 
@@ -87,7 +87,7 @@ The API will be available at `http://127.0.0.1:8000`.
 ### 3. Start the review app
 
 ```bash
-cd /Users/katerinamcmullen/Documents/GitHub/skua
+cd /path/to/skua
 DD_API_BASE_URL=http://127.0.0.1:8000 npm run dev:review
 ```
 
@@ -96,7 +96,7 @@ The review surface will be available at `http://127.0.0.1:3000`.
 ### 4. Start the Word add-in scaffold
 
 ```bash
-cd /Users/katerinamcmullen/Documents/GitHub/skua
+cd /path/to/skua
 npm run dev:word-addin
 ```
 
@@ -107,7 +107,7 @@ The Word add-in scaffold will be available at:
 
 Local manifest path:
 
-- `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/public/manifest.word.xml`
+- `apps/word-addin/public/manifest.word.xml`
 
 ### 5. Create a workspace and upload contracts
 
@@ -122,7 +122,7 @@ The demo workspace `project-redwood` remains available as a read-only sample.
 ### 6. Run the local worker
 
 ```bash
-cd /Users/katerinamcmullen/Documents/GitHub/skua
+cd /path/to/skua
 services/dd-api/.venv/bin/python services/worker/runner.py
 ```
 

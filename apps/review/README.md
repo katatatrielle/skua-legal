@@ -16,7 +16,7 @@ Current responsibilities:
 ## Run
 
 ```bash
-cd /Users/katerinamcmullen/Documents/GitHub/skua
+cd /path/to/skua
 DD_API_BASE_URL=http://127.0.0.1:8000 npm run dev:review
 ```
 

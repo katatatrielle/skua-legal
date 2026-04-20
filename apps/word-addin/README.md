@@ -13,7 +13,7 @@ Current responsibilities:
 ## Run
 
 ```bash
-cd /Users/katerinamcmullen/Documents/GitHub/skua
+cd /path/to/skua
 npm run dev:word-addin
 ```
 
@@ -25,7 +25,7 @@ Because the dev script uses `next dev --experimental-https`, the add-in origin i
 
 The local add-in only manifest lives at:
 
-- `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/public/manifest.word.xml`
+- `apps/word-addin/public/manifest.word.xml`
 
 The manifest currently:
 
@@ -38,7 +38,7 @@ The manifest currently:
 
 The thin Office adapter lives at:
 
-- `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/lib/office.ts`
+- `apps/word-addin/lib/office.ts`
 
 Current live host behaviors:
 
