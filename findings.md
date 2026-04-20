@@ -158,3 +158,10 @@
 - Keeping starter playbooks file-backed but syncing them into `playbooks_platform` at startup is the right bridge. The repo keeps versioned review logic in source control while the runtime still has a durable playbook table for review runs to reference.
 - Ranking becomes much easier to reason about when it is explicitly formula-based. A stable severity-plus-priority-plus-confidence score is enough for v1 filtering and ordering, and it keeps later preference-signal work additive rather than corrective.
 - Validation belongs at finding-write time, not only in the UI. Rejecting findings without support segments and citations whose quotes do not match the stored segment text keeps the review surface honest before Word ever renders the result.
+
+## Phase 36 Findings
+
+- Phase 5 can follow the same deterministic pattern as Phase 4 without losing the product constraint. Retrieval-backed ask and revise runs are enough to prove cited Q&A, suggested-language drafting, and refusal behavior before a provider layer is introduced.
+- Selection-local retrieval materially changes answer quality. Without it, ask tends to overfit the document’s nearest matching clause; with it, the engine can stay anchored to the user’s current clause context, which is the actual job to be done in Word.
+- Clause bank context should beat playbook defaults when both are available. The user’s own fallback language is the more personal and higher-value source, so the service should only fall back to generic playbook language when no clause-bank match is provided.
+- Guardrails need to be structural, not aspirational. Enforcing a short-answer format for ask and an explicit `Suggested language:` label for revise keeps the platform inside the contract-tool lane even when the underlying generation is deterministic and simple.

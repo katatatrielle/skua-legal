@@ -34,10 +34,14 @@ from app.models import (
     PlaybookRecord,
     PlatformAnchorRelocationRequest,
     PlatformAnchorRelocationResult,
+    PlatformAskRunCreateRequest,
+    PlatformAskRunRecord,
     PlatformDocumentIngestRecord,
     PlatformDocumentSearchRequest,
     PlatformDocumentSearchResult,
     PlatformPlaybookRecord,
+    PlatformReviseRunCreateRequest,
+    PlatformReviseRunRecord,
     PlatformReviewRunCreateRequest,
     PlatformReviewRunRecord,
     PlatformDocumentVersionDetailRecord,
@@ -85,6 +89,14 @@ from app.platform_auth import (
     require_current_user,
     require_workspace_access,
     resolve_bearer_token,
+)
+from app.platform_assist import (
+    create_platform_ask_run,
+    create_platform_revise_run,
+    get_platform_ask_run,
+    get_platform_revise_run,
+    list_platform_ask_runs_for_document,
+    list_platform_revise_runs_for_document,
 )
 from app.platform_db import ENGINE, platform_session
 from app.platform_documents import (
@@ -726,6 +738,116 @@ def get_platform_document_review_runs(
             raise HTTPException(status_code=404, detail="Document version not found.")
         require_workspace_access(request, detail.document_version.workspace_id)
         return list_platform_review_runs_for_document(session, document_version_id=document_version_id)
+
+
+@app.post(
+    "/api/v1/platform/ask-runs",
+    response_model=PlatformAskRunRecord,
+)
+def post_platform_ask_run(
+    payload: PlatformAskRunCreateRequest,
+    request: Request,
+) -> PlatformAskRunRecord:
+    require_current_user(request)
+    require_workspace_access(request, payload.workspace_id)
+    with platform_session() as session:
+        try:
+            return create_platform_ask_run(
+                session,
+                payload=payload,
+                request_id=getattr(request.state, "request_id", None),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get(
+    "/api/v1/platform/ask-runs/{ask_run_id}",
+    response_model=PlatformAskRunRecord,
+)
+def get_platform_ask_run_route(
+    ask_run_id: str,
+    request: Request,
+) -> PlatformAskRunRecord:
+    require_current_user(request)
+    with platform_session() as session:
+        record = get_platform_ask_run(session, ask_run_id=ask_run_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Ask run not found.")
+        require_workspace_access(request, record.workspace_id)
+        return record
+
+
+@app.get(
+    "/api/v1/platform/document-versions/{document_version_id}/ask-runs",
+    response_model=list[PlatformAskRunRecord],
+)
+def get_platform_document_ask_runs(
+    document_version_id: str,
+    request: Request,
+) -> list[PlatformAskRunRecord]:
+    require_current_user(request)
+    with platform_session() as session:
+        detail = get_platform_document_version_detail(session, document_version_id=document_version_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Document version not found.")
+        require_workspace_access(request, detail.document_version.workspace_id)
+        return list_platform_ask_runs_for_document(session, document_version_id=document_version_id)
+
+
+@app.post(
+    "/api/v1/platform/revise-runs",
+    response_model=PlatformReviseRunRecord,
+)
+def post_platform_revise_run(
+    payload: PlatformReviseRunCreateRequest,
+    request: Request,
+) -> PlatformReviseRunRecord:
+    require_current_user(request)
+    require_workspace_access(request, payload.workspace_id)
+    with platform_session() as session:
+        try:
+            return create_platform_revise_run(
+                session,
+                payload=payload,
+                request_id=getattr(request.state, "request_id", None),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get(
+    "/api/v1/platform/revise-runs/{revise_run_id}",
+    response_model=PlatformReviseRunRecord,
+)
+def get_platform_revise_run_route(
+    revise_run_id: str,
+    request: Request,
+) -> PlatformReviseRunRecord:
+    require_current_user(request)
+    with platform_session() as session:
+        record = get_platform_revise_run(session, revise_run_id=revise_run_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Revise run not found.")
+        require_workspace_access(request, record.workspace_id)
+        return record
+
+
+@app.get(
+    "/api/v1/platform/document-versions/{document_version_id}/revise-runs",
+    response_model=list[PlatformReviseRunRecord],
+)
+def get_platform_document_revise_runs(
+    document_version_id: str,
+    request: Request,
+) -> list[PlatformReviseRunRecord]:
+    require_current_user(request)
+    with platform_session() as session:
+        detail = get_platform_document_version_detail(session, document_version_id=document_version_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Document version not found.")
+        require_workspace_access(request, detail.document_version.workspace_id)
+        return list_platform_revise_runs_for_document(session, document_version_id=document_version_id)
 
 
 @app.get("/api/v1/provider-configs", response_model=list[ProviderConfigRecord])

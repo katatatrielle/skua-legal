@@ -16,8 +16,12 @@ import type {
   PlaybookSavedNoteRecord,
   PlatformAnchorRelocationRequest,
   PlatformAnchorRelocationResult,
+  PlatformAskRunCreateRequest,
+  PlatformAskRunRecord,
   PlatformDocumentIngestRecord,
   PlatformPlaybookRecord,
+  PlatformReviseRunCreateRequest,
+  PlatformReviseRunRecord,
   PlatformReviewRunCreateRequest,
   PlatformReviewRunRecord,
   PlatformDocumentSearchRequest,
@@ -220,6 +224,54 @@ export class DdApiClient {
   ): Promise<PlatformReviewRunRecord[]> {
     return this.fetch_json<PlatformReviewRunRecord[]>(
       `/api/v1/platform/document-versions/${document_version_id}/review-runs`
+    );
+  }
+
+  async create_platform_ask_run(
+    payload: PlatformAskRunCreateRequest
+  ): Promise<PlatformAskRunRecord> {
+    return this.fetch_json<PlatformAskRunRecord>("/api/v1/platform/ask-runs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async get_platform_ask_run(ask_run_id: string): Promise<PlatformAskRunRecord> {
+    return this.fetch_json<PlatformAskRunRecord>(`/api/v1/platform/ask-runs/${ask_run_id}`);
+  }
+
+  async list_platform_document_ask_runs(
+    document_version_id: string
+  ): Promise<PlatformAskRunRecord[]> {
+    return this.fetch_json<PlatformAskRunRecord[]>(
+      `/api/v1/platform/document-versions/${document_version_id}/ask-runs`
+    );
+  }
+
+  async create_platform_revise_run(
+    payload: PlatformReviseRunCreateRequest
+  ): Promise<PlatformReviseRunRecord> {
+    return this.fetch_json<PlatformReviseRunRecord>("/api/v1/platform/revise-runs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async get_platform_revise_run(revise_run_id: string): Promise<PlatformReviseRunRecord> {
+    return this.fetch_json<PlatformReviseRunRecord>(`/api/v1/platform/revise-runs/${revise_run_id}`);
+  }
+
+  async list_platform_document_revise_runs(
+    document_version_id: string
+  ): Promise<PlatformReviseRunRecord[]> {
+    return this.fetch_json<PlatformReviseRunRecord[]>(
+      `/api/v1/platform/document-versions/${document_version_id}/revise-runs`
     );
   }
 

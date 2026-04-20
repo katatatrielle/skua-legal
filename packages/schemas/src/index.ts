@@ -903,3 +903,54 @@ export interface PlatformReviewRunRecord {
   created_at: string;
   completed_at?: string | null;
 }
+
+export interface PlatformAskRunCreateRequest {
+  workspace_id: string;
+  document_version_id: string;
+  question: string;
+  selection_text?: string | null;
+}
+
+export interface PlatformAskAnswerRecord {
+  answer_text: string;
+  confidence?: number | null;
+  supported: boolean;
+  citations: PlatformReviewCitationRecord[];
+}
+
+export interface PlatformAskRunRecord {
+  id: string;
+  workspace_id: string;
+  matter_id?: string | null;
+  document_version_id?: string | null;
+  question: string;
+  selection_text?: string | null;
+  status: string;
+  answer?: PlatformAskAnswerRecord | null;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export interface PlatformReviseRunCreateRequest {
+  workspace_id: string;
+  document_version_id: string;
+  selected_text: string;
+  instruction: string;
+  playbook_id?: string | null;
+  clause_bank_entry_ids?: string[];
+}
+
+export interface PlatformReviseRunRecord {
+  id: string;
+  workspace_id: string;
+  matter_id?: string | null;
+  document_version_id?: string | null;
+  instruction: string;
+  selected_text?: string | null;
+  status: string;
+  suggested_text?: string | null;
+  rationale?: string | null;
+  citations: PlatformReviewCitationRecord[];
+  created_at: string;
+  completed_at?: string | null;
+}

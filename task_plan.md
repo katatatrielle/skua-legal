@@ -4,9 +4,16 @@
 Reset the repo around the solo-first, Word-native contract copilot and implement the first execution slice: rename repo boundaries to match the v1 product story, remove non-v1 surfaces, narrow the visible UI to Review, Ask, Revise, Saved Clauses, and Settings, and keep the stack runnable after the transition.
 
 ## Current Phase
-Phase 35
+Phase 36
 
 ## Phases
+
+### Phase 36: Phase 5 Ask and Revise Engines
+- [x] Add persisted platform ask/revise contracts in Python and TypeScript
+- [x] Implement document-grounded ask and revise services with selection-local retrieval, clause-bank priority, and guardrails
+- [x] Expose platform ask/revise routes and SDK methods
+- [x] Add tests for cited answers, unsupported-answer refusal, selection-aware retrieval, and revise suggestion labeling
+- **Status:** complete
 
 ### Phase 35: Phase 4 Review Engine
 - [x] Add validated platform playbook contracts and sync starter playbooks from file-backed JSON

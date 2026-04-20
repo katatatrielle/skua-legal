@@ -12,6 +12,7 @@ Current responsibilities:
 - local or S3-backed source/artifact storage
 - platform-native document ingest, segment parsing, anchor relocation, and hybrid search
 - platform review playbooks, deterministic review runs, ranked findings, and exact citations
+- platform ask and revise runs with scope-aware retrieval and output guardrails
 - canonical project and document-version records
 - review runs and suggestion actions
 - ask runs

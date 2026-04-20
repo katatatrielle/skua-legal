@@ -119,6 +119,8 @@ Useful worker modes:
 - anchor relocation and hybrid segment retrieval for cited downstream flows
 - file-backed platform playbooks synced into the database at startup
 - deterministic review runs with stored findings, citations, ranking, and apply artifacts
+- platform ask runs with short cited answers and unsupported-claim refusals
+- platform revise runs with suggested-language labeling, playbook defaults, and clause-bank priority hooks
 - persisted review runs and suggestion actions
 - queued ask and revise runs
 - starter playbook loading

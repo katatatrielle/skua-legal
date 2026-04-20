@@ -890,6 +890,11 @@
 | Review app typecheck after Phase 4 schema expansion | `npm run typecheck:web` | Support web app still typechecks after platform review contracts were added to shared schemas/SDK | Passed | pass |
 | Word add-in typecheck after Phase 4 schema expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after platform review contracts were added to shared schemas/SDK | Passed | pass |
 | Root test script after Phase 4 review engine | `npm test` | Repo-wide checks remain green with the new platform review engine | Passed | pass |
+| Python compile after Phase 5 ask/revise services | `python3 -m compileall services/api/app` | API modules compile after platform ask/revise additions | Passed | pass |
+| API suite after Phase 5 ask/revise services | `npm run test:api` | Platform ingest, review, ask, and revise flows all pass together | Passed with `14 passed` | pass |
+| Review app typecheck after Phase 5 schema expansion | `npm run typecheck:web` | Support web app still typechecks after platform ask/revise contracts were added to shared schemas/SDK | Passed | pass |
+| Word add-in typecheck after Phase 5 schema expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after platform ask/revise contracts were added to shared schemas/SDK | Passed | pass |
+| Root test script after Phase 5 ask/revise services | `npm test` | Repo-wide checks remain green with the new platform ask and revise engine | Passed | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |

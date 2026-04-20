@@ -981,4 +981,55 @@ class PlatformReviewRunRecord(SkuaModel):
     completed_at: str | None = None
 
 
+class PlatformAskRunCreateRequest(SkuaModel):
+    workspace_id: str
+    document_version_id: str
+    question: str
+    selection_text: str | None = None
+
+
+class PlatformAskAnswerRecord(SkuaModel):
+    answer_text: str
+    confidence: float | None = None
+    supported: bool
+    citations: list[PlatformReviewCitationRecord] = Field(default_factory=list)
+
+
+class PlatformAskRunRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    matter_id: str | None = None
+    document_version_id: str | None = None
+    question: str
+    selection_text: str | None = None
+    status: str
+    answer: PlatformAskAnswerRecord | None = None
+    created_at: str
+    completed_at: str | None = None
+
+
+class PlatformReviseRunCreateRequest(SkuaModel):
+    workspace_id: str
+    document_version_id: str
+    selected_text: str
+    instruction: str
+    playbook_id: str | None = None
+    clause_bank_entry_ids: list[str] = Field(default_factory=list)
+
+
+class PlatformReviseRunRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    matter_id: str | None = None
+    document_version_id: str | None = None
+    instruction: str
+    selected_text: str | None = None
+    status: str
+    suggested_text: str | None = None
+    rationale: str | None = None
+    citations: list[PlatformReviewCitationRecord] = Field(default_factory=list)
+    created_at: str
+    completed_at: str | None = None
+
+
 AuthTokenResponse.model_rebuild()
