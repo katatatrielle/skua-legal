@@ -1,1 +1,1 @@
-"""Skua DD API package."""
+"""Skua contracts API package."""

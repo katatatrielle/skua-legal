@@ -1,50 +1,53 @@
 # Open Contracts for Canada - Word Add-in Wireframes
 
-Status: Draft
-Updated: 2026-04-19
+Status: Draft  
+Updated: 2026-04-20  
 Related:
 - `docs/specs/open-contracts-engineering-spec.md`
 - `docs/specs/open-contracts-endpoint-contracts.md`
 
 ## 1. Design Constraints
 
-- Target a task pane width of 360 to 420 px.
-- Assume the user keeps the pane open while reading and editing the Word document.
-- Word remains the primary canvas; the add-in should feel like a sidecar, not a replacement editor.
-- All suggestion application happens locally through Office.js.
-- The default interaction model is single-column, stacked, scrollable cards.
+- target a task-pane width of 360 to 420 px
+- assume the user keeps the pane open while reading and editing in Word
+- Word remains the primary canvas
+- all apply actions happen locally through Office.js
+- default interaction is single-column, stacked, and scannable
 
-## 2. Ribbon Entry Points
+## 2. Product Framing
 
-The task pane is the main UI, but the Word ribbon should provide fast entry points.
+The add-in is the primary surface for the product.
+
+The web console is supportive. It handles account access, playbooks, clause bank, run history, and billing or provider settings, but it should not displace Word for review work.
+
+## 3. Ribbon Entry Points
 
 ```text
 +----------------------------------------------------------------------------------+
 | Skua Contracts                                                                   |
 |----------------------------------------------------------------------------------|
-| [Open Pane] [Review Selection] [Review Document] [Ask] [Draft from Library]      |
-| [Refresh Anchors] [Export to Project]                                            |
+| [Open Pane] [Review Selection] [Review Document] [Ask] [Revise Clause]           |
+| [Refresh Anchors] [Open Clause Bank]                                             |
 +----------------------------------------------------------------------------------+
 ```
 
 Behavior notes:
 
-- `Open Pane` restores the last active tab.
-- `Review Selection` opens the Review tab with `Scope=Selection`.
-- `Review Document` opens the Review tab with `Scope=Full document`.
-- `Draft from Library` opens the Draft tab and preloads the current cursor context.
+- `Open Pane` restores the last active tab
+- `Review Selection` opens Review with selection scope locked
+- `Review Document` opens Review with full-document scope
+- `Revise Clause` opens Revise and preloads the current selection
+- `Open Clause Bank` opens the saved fallback surface
 
-## 3. Shared Shell
-
-Every tab uses the same shell.
+## 4. Shared Shell
 
 ```text
 +--------------------------------------+
 | Skua                                 |
-| Maple Acquisition / Vendor MSA       |
-| Buyer | Ontario | v3 | Saved         |
+| Northshore / Vendor MSA              |
+| Buyer | Ontario | v3 | Hosted        |
 |--------------------------------------|
-| Review  Ask  Draft  Playbooks  Std   |
+| Review Ask Revise Clause Bank PBs    |
 |--------------------------------------|
 | [Context banner or active run state] |
 |                                      |
@@ -55,25 +58,22 @@ Every tab uses the same shell.
 
 Shared behavior:
 
-- The header always shows project, represented party, jurisdiction, and current document version.
-- The tab rail is sticky.
-- A contextual banner can show `Review running`, `3 suggestions filtered`, or `Using selection scope`.
+- header shows matter, represented party, jurisdiction, document version, and provider mode
+- tab rail is sticky
+- banner can show `Using selection scope`, `Review running`, or `Budget warning`
 
-## 4. Screen 1 - Review Setup
+## 5. Review Tab
+
+### 5.1 Review setup
 
 Purpose: start a full-document or selection-scoped review run.
 
 ```text
 +--------------------------------------+
-| Skua                                 |
-| Maple Acquisition / Vendor MSA       |
-| Review  Ask  Draft  Playbooks  Std   |
-|--------------------------------------|
 | Review setup                         |
-| Choose how to analyze this document. |
-|                                      |
+|--------------------------------------|
 | Review type                          |
-| [ General                     v ]    |
+| [ General contract review      v ]   |
 |                                      |
 | Scope                                |
 | ( ) Full document                    |
@@ -82,158 +82,116 @@ Purpose: start a full-document or selection-scoped review run.
 | Represented party                    |
 | [ Buyer                       v ]    |
 |                                      |
-| Jurisdiction                         |
-| [ Ontario                     v ]    |
+| Contract type                        |
+| [ Vendor MSA                  v ]    |
 |                                      |
-| Audience                             |
-| [ Internal                    v ]    |
+| Playbook                             |
+| [ Buyer-side MSA Review       v ]    |
 |                                      |
-| Deal context                         |
-| [ Share purchase, vendor paper   ]   |
+| Output                               |
+| [x] Comments                         |
+| [x] Tracked changes                  |
+| [x] Include fallback language        |
 |                                      |
-| Markup settings                      |
-| [x] Insert comments                  |
-| [x] Suggest tracked changes          |
-| [x] Include fallback position        |
-| Severity threshold                   |
-| [ Medium                      v ]    |
-|                                      |
-| Playbooks                            |
-| [x] Commercial Review Canada         |
-| [ ] Vendor Paper Sweep               |
+| Spend guardrail                      |
+| Warn over $ [ 1.00 ]                 |
 |                                      |
 | [ Run review ]                       |
 +--------------------------------------+
 ```
 
-Interaction notes:
-
-- If the user launched from `Review Selection`, selection scope is preselected and locked until the pane is reopened.
-- If no selection is active, the pane falls back to full-document scope and shows a small inline notice.
-- `Run review` creates a `review_run` and transitions into the progress state.
-
-## 5. Screen 2 - Review Running
-
-Purpose: give immediate feedback while suggestions are generated.
+### 5.2 Review running
 
 ```text
 +--------------------------------------+
 | Review running                       |
 |--------------------------------------|
-| General review over selection        |
-| Buyer | Ontario | Internal           |
-|                                      |
+| Buyer-side MSA Review                |
 | [##########...............] 42%      |
 |                                      |
 | Current step                         |
 | Checking assignment and transfer     |
-| language against selected playbooks. |
+| language against playbook rules.     |
 |                                      |
-| Suggestions found so far             |
+| Findings so far                      |
 | High: 1  Medium: 2  Low: 0           |
 |                                      |
-| [ View partial results ]             |
-| [ Cancel ]                           |
+| [ View partial ] [ Cancel ]          |
 +--------------------------------------+
 ```
 
-Interaction notes:
-
-- `View partial results` is enabled only after the first suggestion is stored.
-- Partial results are clearly labeled as incomplete.
-
-## 6. Screen 3 - Review Results List
-
-Purpose: browse, filter, and prioritize suggestions.
+### 5.3 Review results
 
 ```text
 +--------------------------------------+
 | Review results                       |
-| 6 suggestions | 2 high | 1 applied   |
+| 6 findings | 2 high | 1 applied      |
 |--------------------------------------|
 | Filters                              |
-| Severity [ All v ]  Status [ Open v ]|
-| Type     [ All v ]                   |
+| Severity [ All v ] Status [ Open v ] |
 |                                      |
 | [High] Consent may be required on    |
 | change of control                    |
 | Assignment | 84% confidence          |
 | "Neither party may assign..."        |
-| [Open] [Jump] [Review]               |
+| [Jump] [Review]                      |
 |--------------------------------------|
 | [Medium] Auto-renewal appears to     |
 | renew unless notice is given.        |
 | Renewal | 78% confidence             |
-| "Initial term of one year..."        |
-| [Open] [Jump] [Review]               |
-|--------------------------------------|
-| [Low] Governing law should be        |
-| confirmed against playbook default.  |
-| Governing law | 62% confidence       |
-| [Reviewed] [Jump] [Review]           |
+| [Jump] [Review]                      |
 +--------------------------------------+
 ```
 
-Interaction notes:
-
-- `Jump` selects the underlying Word range using the stored anchor.
-- `Review` opens the detail screen for that suggestion.
-- Filters are local once results are loaded.
-
-## 7. Screen 4 - Suggestion Detail
-
-Purpose: inspect one suggestion deeply and decide what to do.
+### 5.4 Finding detail
 
 ```text
 +--------------------------------------+
-| < Back to results                    |
+| < Back                               |
 |--------------------------------------|
 | Consent may be required on change of |
 | control                              |
 | [High] Assignment | 84% confidence   |
 |                                      |
 | Why this matters                     |
-| The clause prohibits assignment      |
-| without consent and does not carve   |
-| out affiliate transfers or internal  |
-| reorganizations.                     |
+| The clause blocks assignment without |
+| an affiliate or internal transfer    |
+| carve-out.                           |
 |                                      |
 | Source excerpt                       |
 | "Neither party may assign this       |
-| Agreement without prior written      |
-| consent..."                          |
+| Agreement..."                        |
 | [ Jump to source ]                   |
 |                                      |
 | Proposed comment                     |
 | +----------------------------------+ |
-| | Buyer counsel note: consider    | |
-| | adding an affiliate or change-  | |
-| | of-control carve-out.           | |
+| | Buyer note: consider adding an  | |
+| | affiliate or reorganization     | |
+| | carve-out.                      | |
 | +----------------------------------+ |
 |                                      |
 | Proposed redline                     |
 | +----------------------------------+ |
-| | Neither party may assign this   | |
-| | Agreement without prior written | |
-| | consent, except to an affiliate | |
-| | ...                             | |
+| | Neither party may assign...     | |
+| | except to an affiliate or in    | |
+| | connection with a reorg...      | |
 | +----------------------------------+ |
 |                                      |
 | [ Apply comment ]                    |
 | [ Apply redline ]                    |
 | [ Mark reviewed ]                    |
 | [ Dismiss ]                          |
-| [ Save to playbook ]                 |
+| [ Save fallback ]                    |
 +--------------------------------------+
 ```
 
-Interaction notes:
+Behavior notes:
 
-- `Apply comment` and `Apply redline` first update the document locally, then call the API receipt endpoint.
-- If application fails because the anchor drifted, the add-in shows `Anchor moved - reselect text or refresh anchors`.
-- `Save to playbook` opens a compact inline form rather than a modal.
+- `Apply comment` and `Apply redline` mutate Word locally first, then send a receipt to the API
+- if the anchor drifted, show `Anchor moved. Re-select text or refresh anchors.`
+- `Save fallback` pushes the suggestion into the clause bank
 
-## 8. Screen 5 - Ask
+## 6. Ask Tab
 
 Purpose: ask cited questions without leaving Word.
 
@@ -241,13 +199,9 @@ Purpose: ask cited questions without leaving Word.
 +--------------------------------------+
 | Ask                                  |
 |--------------------------------------|
-| Sources                              |
-| [x] Current document                 |
-| [x] Current selection                |
-| [ ] Uploaded references              |
-| [x] Org library                      |
-| [ ] Legal sources                    |
-| [ ] Web search                       |
+| Scope                                |
+| ( ) Full document                    |
+| (o) Current selection                |
 |                                      |
 | Ask a question                       |
 | +----------------------------------+ |
@@ -256,193 +210,158 @@ Purpose: ask cited questions without leaving Word.
 | | control?                        | |
 | +----------------------------------+ |
 |                                      |
-| Answer format                        |
-| [ Plain answer                v ]    |
-|                                      |
 | [ Ask ]                              |
 |--------------------------------------|
 | Answer                               |
 | The agreement appears to prohibit    |
-| assignment without consent and does  |
-| not include an express change-of-    |
-| control carve-out.                   |
+| assignment without consent, with no  |
+| explicit change-of-control carve-out.|
 |                                      |
 | Citations                            |
-| - Assignment clause                  |
-| - Library precedent note             |
+| 1. "Neither party may assign..."     |
+| 2. "This Agreement binds successors" |
 |                                      |
-| [ Turn into clause ]                 |
-| [ Turn into checklist ]              |
-| [ Copy to memo ]                     |
+| Next                                 |
+| [ Revise this clause ]               |
 +--------------------------------------+
 ```
 
-Interaction notes:
+Return shape:
 
-- If both customer documents and legal or web sources are used, the answer area splits into `Customer documents` and `Public sources`.
-- Citations should jump either to Word anchors or to a side-sheet preview for non-Word sources.
+- short answer
+- confidence
+- one to three citations
+- optional next-step prompt
 
-## 9. Screen 6 - Draft from Library
+## 7. Revise Tab
 
-Purpose: find precedent, preview provenance, auto-adjust, and insert at cursor.
+Purpose: rewrite the selected clause with citations and fallback context.
 
 ```text
 +--------------------------------------+
-| Draft                                |
+| Revise                               |
 |--------------------------------------|
-| Mode                                 |
-| (o) Draft from library               |
-| ( ) Draft from instruction           |
-| ( ) Improve existing clause          |
+| Selected text                        |
+| "Neither party may assign this       |
+| Agreement without prior consent..."  |
 |                                      |
-| Search library                       |
-| [ assignment clause affiliate     ]  |
+| Instruction                          |
+| [ Make this supplier-friendly     ]  |
 |                                      |
-| Filters                              |
-| Type [ MSA v ] Law [ Ontario v ]     |
-| Role [ Customer v ]                  |
+| Use playbook                         |
+| [ Buyer-side MSA Review       v ]    |
 |                                      |
-| Results                              |
-| Customer MSA assignment clause       |
-| Ontario | 2025 | Approved form       |
-| "Neither party may assign..."        |
-| [ Preview ] [ Auto-adjust ]          |
+| Use saved fallbacks                  |
+| [x] Clause bank                      |
+|                                      |
+| [ Generate revision ]                |
 |--------------------------------------|
-| Preview                              |
-| Source: 2025 Customer MSA            |
-| Provenance: Maple Software / signed  |
+| Revised clause                       |
+| "Neither party may assign this       |
+| Agreement without consent, except..."|
 |                                      |
-| Adjusted draft                       |
-| +----------------------------------+ |
-| | Neither party may assign this   | |
-| | Agreement without prior written | |
-| | consent, except to an affiliate | |
-| | ...                             | |
-| +----------------------------------+ |
+| Why                                  |
+| Preserves a consent baseline while   |
+| adding internal-transfer flexibility.|
 |                                      |
-| [ Insert at cursor ]                 |
-| [ Copy text ]                        |
+| Source and fallback citations        |
+| [ Current clause ] [ Saved fallback ]|
+|                                      |
+| [ Insert with tracked changes ]      |
+| [ Copy ]                             |
+| [ Save as fallback ]                 |
 +--------------------------------------+
 ```
 
-Interaction notes:
+Important rule: Revise does not auto-mutate the document. The user must explicitly apply or insert the result.
 
-- `Auto-adjust` uses the current document style and represented party defaults.
-- If the cursor is not in a sensible insertion location, the add-in inserts after the current paragraph and warns the user.
+## 8. Clause Bank Tab
 
-## 10. Screen 7 - Playbooks
+Purpose: surface saved fallback language and reusable clause options.
 
-Purpose: manage rule packs without leaving Word.
+```text
++--------------------------------------+
+| Clause Bank                          |
+|--------------------------------------|
+| Search                               |
+| [ assignment carve-out           ]   |
+|                                      |
+| Filters                              |
+| Contract [ MSA v ] Issue [ Assign v ]|
+|                                      |
+| Saved fallback                       |
+| Affiliate carve-out fallback         |
+| Buyer-side | Used 7 times            |
+| "Neither party may assign..."        |
+| [ Insert ] [ Use in Revise ]         |
+|--------------------------------------|
+| Save current selection               |
+| [ Save selected clause ]             |
++--------------------------------------+
+```
+
+Behavior notes:
+
+- entries should preserve provenance when created from accepted suggestions
+- the tab should support lightweight tagging and recency sorting
+
+## 9. Playbooks Tab
+
+Purpose: manage the rule set behind review behavior.
 
 ```text
 +--------------------------------------+
 | Playbooks                            |
 |--------------------------------------|
-| Scope [ Organization v ]             |
+| Active playbook                      |
+| Buyer-side MSA Review                |
 |                                      |
-| Commercial Review Canada             |
-| v4 | 38 checks                       |
-| [ Run ] [ Edit ] [ Export ]          |
-|--------------------------------------|
-| Vendor Paper Sweep                   |
-| v2 | 12 checks                       |
-| [ Run ] [ Edit ] [ Export ]          |
-|--------------------------------------|
-| Import playbook                       |
-| [ Choose YAML / JSON file ]          |
+| Rules                                |
+| [x] Assignment carve-out expected    |
+| [x] Auto-renewal requires notice     |
+| [x] Liability cap fallback available |
 |                                      |
-| Quick view                            |
-| Tabs: Rules | Questions              |
-| - coc_consent                        |
-| - governing_law                      |
-| - liability_cap                      |
+| Preferred fallback language          |
+| 3 saved                              |
+|                                      |
+| [ Open in web console ]              |
 +--------------------------------------+
 ```
 
-Interaction notes:
+The add-in should support light inspection and selection. Full editing can stay in the web console in v1.
 
-- Editing can open a compact in-pane editor for metadata plus a "download/edit/reimport" workflow for raw YAML in v1.
-- Import validation errors render inline with the line number when available.
+## 10. Context and Settings
 
-## 11. Screen 8 - Standards
-
-Purpose: compare the current document to house standard or precedent corpus.
+Purpose: keep the user aware of cost, provider, and matter context without turning the add-in into an admin surface.
 
 ```text
 +--------------------------------------+
-| Standards                            |
+| Settings and context                 |
 |--------------------------------------|
-| Compare against                      |
-| [ House Standard               v ]   |
+| Workspace                            |
+| KMC Law                              |
 |                                      |
-| Standard pack                        |
-| [ Buyer MSA Ontario 2026       v ]   |
+| Matter                               |
+| Northshore Vendor MSA                |
 |                                      |
-| [ Run standards check ]              |
-|--------------------------------------|
-| Coverage score                       |
-| 73.5 / 100                           |
+| Provider                             |
+| Hosted OpenAI                        |
 |                                      |
-| Missing clauses                      |
-| - Affiliate transfer carve-out       |
-| - Data localization fallback         |
+| Spend this month                     |
+| $16.70 / $50.00                      |
 |                                      |
-| Weak clauses                         |
-| Assignment clause                    |
-| [ Go to ] [ Show fix ] [ Insert fix ]|
-|                                      |
-| Limitation of liability              |
-| [ Go to ] [ Show fix ] [ Insert fix ]|
+| [ Open billing and provider settings ]|
 +--------------------------------------+
 ```
 
-Interaction notes:
+## 11. Deferred or Legacy UX
 
-- `Insert fix` reuses the same local Word-application flow as review redlines.
-- v1 should label this area `Standards`, not `Market`.
+The add-in should not center any of the following in v1:
 
-## 12. Empty, Error, and Drift States
+- broad multi-document diligence tables
+- memo drafting workflows
+- DD report exports
+- deal-room navigation
+- admin-heavy governance controls
 
-### No document context
-
-```text
-+--------------------------------------+
-| Open a DOCX contract to begin.       |
-| Review, Ask, and Draft all require   |
-| an active Word document.             |
-+--------------------------------------+
-```
-
-### Anchor drift
-
-```text
-+--------------------------------------+
-| Anchor moved                         |
-| The source text changed after this   |
-| suggestion was created.              |
-|                                      |
-| [ Jump to closest match ]            |
-| [ Refresh anchors ]                  |
-| [ Dismiss suggestion ]               |
-+--------------------------------------+
-```
-
-### Provider blocked
-
-```text
-+--------------------------------------+
-| Provider not available               |
-| Your organization allows only        |
-| hosted models for this workspace.    |
-|                                      |
-| [ View provider settings ]           |
-+--------------------------------------+
-```
-
-## 13. Implementation Notes
-
-- Build the pane as a React app inside `apps/word-addin`.
-- Use Office.js only in a thin adapter layer so the bulk of state and UI logic remains testable in plain React.
-- Keep the visual language close to the existing `apps/review` product tone: editorial, calm, and legal-workflow oriented.
-- Favor inline disclosure over modal stacks. A narrow pane cannot sustain deep modal nesting well.
-- Persist local pane state per document so reopening the pane returns the user to the last active suggestion or tab.
+Those behaviors may remain elsewhere in the repo during transition, but they are not the target Word UX.

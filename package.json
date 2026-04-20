@@ -2,7 +2,7 @@
   "name": "skua",
   "private": true,
   "version": "0.1.0",
-  "description": "Skua Legal monorepo scaffold",
+  "description": "Skua Legal monorepo for a Word-native contract review copilot",
   "workspaces": [
     "apps/*",
     "packages/*"

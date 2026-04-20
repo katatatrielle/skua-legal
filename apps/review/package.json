@@ -2,7 +2,7 @@
   "name": "@skua/review",
   "private": true,
   "version": "0.1.0",
-  "description": "Thin review UI for Skua Legal",
+  "description": "Thin web console for Skua Legal",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

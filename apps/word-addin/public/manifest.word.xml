@@ -10,7 +10,7 @@
   <ProviderName>Skua Legal</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Skua Contracts" />
-  <Description DefaultValue="Word-first contract review, ask, draft, and standards workflows for Skua Legal." />
+  <Description DefaultValue="Word-first contract review, clause revision, and saved fallback workflows for Skua Legal." />
   <IconUrl DefaultValue="https://localhost:3001/icons/skua-32.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3001/icons/skua-80.png" />
   <SupportUrl DefaultValue="https://github.com/katerinamcmullen/skua" />

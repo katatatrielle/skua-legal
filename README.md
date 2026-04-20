@@ -1,68 +1,81 @@
 # Skua Legal
 
-Skua Legal is an open-source due diligence workspace for share and asset purchase transactions.
+Skua Legal is being repositioned as a Word-native contract review copilot for solo lawyers and very small firms.
 
-The first product target is simple and useful:
+The intended v1 product is narrow on purpose:
 
-- deal room in
-- DD grid out
-- memo draft out
+- open a contract in Word
+- run a playbook-based review
+- ask cited questions about a clause or agreement
+- apply comments or tracked-change suggestions
+- save preferred fallback language
+- reuse that language later
 
-Skua is being shaped around a practical legal workflow for Canadian and Ontario-focused teams:
+The web app is a support surface for auth, billing, settings, playbooks, clause memory, matter history, and spend controls. Optional BYOK remains part of the product direction.
 
-- upload PDF and DOCX agreements
-- classify and deduplicate documents
-- run editable diligence playbooks
-- extract structured contract terms with source citations
-- review issues in a grid
-- answer deal questions with cited source text
-- export a first-pass DD memo, exceptions list, and spreadsheet
+This repo still contains earlier due-diligence and workflow-heavy prototype slices. Those pieces are transitional infrastructure and legacy product experiments, not the governing product thesis going forward.
 
-## Current Kickoff Slice
+## Product Boundary
 
-This repo now includes a runnable first slice:
+### In scope for the solo-first path
 
-- a FastAPI `dd-api` service with seeded demo data plus real workspace creation, upload, parsing, issue filters, and first-pass memo output
-- a Next.js `review` app that renders the review grid, highlights, memo draft, exceptions list, upload controls, multi-document queries, and DD workflow reports
-- a Next.js `review` app that now also lets reviewers correct extracted workflow cells, edit DD reports, rerun workflows, export multi-sheet workflow workbooks as `.xlsx`, export richer memos as `.docx`, and review workflow/report edit history with change summaries
-- editable YAML playbooks for the first commercial DD sweeps
-- shared TypeScript contracts plus a tiny SDK for the review UI
+- Word-first contract review and revision
+- playbook-based findings with citations
+- cited Ask and clause-level Revise actions
+- saved fallback language and clause-bank retrieval
+- lightweight matter and run history
+- transparent hosted pricing plus BYOK support
 
-The current slice now supports a lightweight real workflow:
+### Out of scope for v1
 
-- create a workspace
-- upload PDF and DOCX agreements
-- parse them synchronously in the DD API
-- persist workspace, document, page, and issue records in local SQLite
-- render first-pass cited issues and memo output in the review UI
-- mirror uploaded matters into canonical `project`, `document_version`, `document_anchor`, `job`, and `audit_event` records for the next product stage
-- queue asynchronous re-ingest and review-export jobs that a local worker can process outside the request path
-- extract clause-backed library items from uploaded documents and search them through a shared retrieval layer with provenance and basic metadata filters
-- run queue-backed multi-document query sweeps across selected project documents and export the resulting table as CSV
-- run file-backed DD workflow templates that generate memo drafts, exceptions lists, per-document summaries, template-driven workbook/docx exports, and selectable artifact variants through the same job system
-- correct extracted workflow cells, persist report edits, rerun workflows, download multi-sheet workflow `.xlsx` and richer memo `.docx` artifacts, and inspect reviewer/system edit history with diff summaries from the web workspace
+- a full diligence workspace
+- a multi-reviewer deal room
+- a broad legal research engine
+- a benchmark or compare-to-market platform
+- a heavy enterprise admin suite
 
-The repo now also includes a first Word add-in scaffold:
+## Current State vs Target State
 
-- a narrow Next.js task-pane app at `apps/word-addin`
-- typed Review, Ask, Draft, Playbooks, and Standards surfaces driven by shared schema contracts
-- a concrete UI target for Office.js integration plus a local Word add-in manifest
-- a live Review tab that posts persisted review runs to the DD API from the current Word selection
-- a live Ask tab that queues citation-backed ask runs from the current Word selection and can complete through the local worker
-- a live Draft tab that queues persisted draft runs, returns adjusted clause text plus precedent-style matches, and can complete through the local worker
-- persisted suggestion actions so comment/redline receipts and review states survive pane refreshes
-- lightweight action history on review suggestions, including post-apply anchor context from Word
-- anchor recovery controls that can re-select the closest matching clause in Word after drift
-- a persisted save-to-playbook loop so reviewers can capture suggestion notes into the Playbooks tab
-- explicit playbook/check targeting in the Review pane so captured notes land in a chosen rule bucket
-- a richer Review flow with setup controls, running-state progress, issue-type filtering, jump-to-source actions, and review-summary export
-- more interactive Ask, Draft, and Playbooks tabs that align more closely with the add-in wireframes
-- a live Standards tab that compares the current Word selection to a file-backed house-standard template and returns a real coverage score plus missing and weak clause output
+### Target product direction
 
-This is still intentionally lightweight. It uses heuristic extraction and local storage to prove the workflow before Postgres, queues, and model-driven extraction land, but the report/export loop now has a real binary-artifact path, multi-sheet exports, and lightweight diff-aware event history.
+- `apps/word-addin` is the primary product surface.
+- `apps/review` is evolving into a thin web console for settings, history, playbooks, clause memory, and billing-style controls.
+- `services/dd-api` is a transitional path name for the backend API that will continue to power ingest, review, ask, revise, retrieval, usage, and audit flows.
+- `services/worker` remains the async execution layer for parsing, indexing, review runs, ask runs, revise runs, and maintenance jobs.
 
-Workflow templates now also define export structure directly. The current commercial DD template declares workbook sheets, memo sections, and artifact variants in `packages/workflows/commercial-dd-report.yaml`, and the export builders use that metadata instead of a single hardcoded report layout.
-The Standards surface is now backed by file-based house-standard packs from `packages/standards/commercial-house-standard.yaml` and a live DD API comparison route.
+### Reusable foundations already in the repo
+
+- a Word add-in shell with Review, Ask, Draft, Playbooks, and Standards tabs
+- persisted review runs, review suggestions, and suggestion actions
+- parsing and upload plumbing for DOCX and PDF files
+- source anchoring, citations, and async job handling
+- file-backed playbooks and early retrieval/library plumbing
+
+### Legacy or transitional prototype slices
+
+- multi-document diligence queries and workflow runs
+- DD report, memo, and exceptions-list generation
+- legacy review-grid positioning in `apps/review`
+- `dd-api` naming and DD-heavy route groupings
+
+Those legacy slices stay in the repo for now because they still provide useful scaffolding and compatibility, but they should be read as transitional rather than target-product architecture.
+
+## Core Docs
+
+- [Engineering spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-engineering-spec.md)
+- [Endpoint contracts](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-endpoint-contracts.md)
+- [Word add-in wireframes](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-word-addin-wireframes.md)
+
+The filenames remain unchanged for compatibility, but those docs now describe the solo-first contract review direction.
+
+## Current Repo Slice
+
+The repo currently contains:
+
+- a FastAPI backend at `services/dd-api` with persisted uploads, parsing, review, ask, draft, standards, audit, and legacy workflow routes
+- a Next.js Word add-in at `apps/word-addin` that is the closest thing to the target product surface
+- a Next.js web app at `apps/review` that currently mixes thin-console behavior with older review-grid and workflow panels
+- file-backed playbooks, standards, prompts, and legacy workflow templates under `packages/`
 
 ## Quick Start
 
@@ -72,7 +85,9 @@ The Standards surface is now backed by file-based house-standard packs from `pac
 npm install
 ```
 
-### 2. Start the DD API
+### 2. Start the transitional backend API
+
+The service path is still `services/dd-api` for now.
 
 ```bash
 cd services/dd-api
@@ -84,42 +99,34 @@ uvicorn app.main:app --reload
 
 The API will be available at `http://127.0.0.1:8000`.
 
-### 3. Start the review app
+### 3. Start the web console
+
+The workspace path is still `apps/review` for now.
 
 ```bash
 cd /path/to/skua
 DD_API_BASE_URL=http://127.0.0.1:8000 npm run dev:review
 ```
 
-The review surface will be available at `http://127.0.0.1:3000`.
+The console will be available at `http://127.0.0.1:3000`.
 
-### 4. Start the Word add-in scaffold
+### 4. Start the Word add-in
 
 ```bash
 cd /path/to/skua
 npm run dev:word-addin
 ```
 
-The Word add-in scaffold will be available at:
+The add-in will be available at:
 
-- `http://127.0.0.1:3001` for normal browser preview
+- `http://127.0.0.1:3001` for browser preview
 - `https://localhost:3001` for Word sideloading via the local manifest
 
 Local manifest path:
 
 - `apps/word-addin/public/manifest.word.xml`
 
-### 5. Create a workspace and upload contracts
-
-Open the review app and:
-
-1. create a new workspace
-2. upload one or more `.pdf` or `.docx` agreements
-3. review the generated issues, citations, highlights, and memo draft
-
-The demo workspace `project-redwood` remains available as a read-only sample.
-
-### 6. Run the local worker
+### 5. Run the local worker
 
 ```bash
 cd /path/to/skua
@@ -131,112 +138,104 @@ Useful local modes:
 - `--once` to process a single queued job and exit
 - `--max-jobs 5` to drain a bounded slice of the queue and stop
 
-## Current API Surface
+## Transitional API Surface
+
+The current API still includes legacy DD-oriented endpoints alongside the newer Word-review routes.
+
+Core solo-first routes already present:
 
 - `GET /healthz`
 - `GET /api/v1/playbooks`
-- `GET /api/v1/workflows/templates`
+- `GET /api/v1/standards/templates`
 - `GET /api/v1/playbooks/saved-notes`
 - `GET /api/v1/workspaces`
 - `POST /api/v1/workspaces`
-- `GET /api/v1/workspaces/{workspace_id}`
-- `GET /api/v1/workspaces/{workspace_id}/issues`
-- `POST /api/v1/workspaces/{workspace_id}/documents/upload`
 - `GET /api/v1/projects`
 - `POST /api/v1/projects`
-- `GET /api/v1/projects/{project_id}`
-- `GET /api/v1/projects/{project_id}/documents`
-- `GET /api/v1/projects/{project_id}/jobs`
-- `GET /api/v1/projects/{project_id}/queries/runs`
-- `GET /api/v1/projects/{project_id}/workflows/runs`
 - `POST /api/v1/documents/upload`
 - `GET /api/v1/documents/{document_id}`
 - `POST /api/v1/documents/{document_id}/ingest`
-- `GET /api/v1/jobs/{job_id}`
-- `GET /api/v1/workspaces/{workspace_id}/outputs/first-pass`
+- `POST /api/v1/review/runs`
+- `GET /api/v1/review/runs/{review_run_id}`
+- `POST /api/v1/review/runs/{review_run_id}/export-summary`
+- `POST /api/v1/review/suggestions/{suggestion_id}/apply`
+- `POST /api/v1/review/suggestions/{suggestion_id}/dismiss`
+- `POST /api/v1/review/suggestions/{suggestion_id}/mark-reviewed`
+- `POST /api/v1/review/suggestions/{suggestion_id}/save-to-playbook`
 - `POST /api/v1/ask`
 - `GET /api/v1/ask/{ask_run_id}`
 - `POST /api/v1/draft`
 - `GET /api/v1/draft/{draft_run_id}`
 - `POST /api/v1/library/search`
-- `POST /api/v1/queries/runs`
-- `GET /api/v1/queries/runs/{query_run_id}`
-- `GET /api/v1/queries/runs/{query_run_id}/export`
-- `POST /api/v1/workflows/runs`
-- `GET /api/v1/workflows/runs/{workflow_run_id}`
-- `PUT /api/v1/workflows/runs/{workflow_run_id}`
-- `POST /api/v1/workflows/runs/{workflow_run_id}/rerun`
-- `GET /api/v1/dd/reports/{dd_report_id}`
-- `PUT /api/v1/dd/reports/{dd_report_id}`
-- `GET /api/v1/dd/reports/{dd_report_id}/export`
-- `POST /api/v1/review/runs`
-- `GET /api/v1/review/runs/{review_run_id}`
-- `POST /api/v1/review/runs/{review_run_id}/export-summary`
-- `POST /api/v1/review/runs/{review_run_id}/queue-export-summary`
-- `POST /api/v1/review/suggestions/{suggestion_id}/apply`
-- `POST /api/v1/review/suggestions/{suggestion_id}/dismiss`
-- `POST /api/v1/review/suggestions/{suggestion_id}/mark-reviewed`
-- `POST /api/v1/review/suggestions/{suggestion_id}/save-to-playbook`
 - `GET /api/v1/audit`
+
+Legacy or transitional routes still present:
+
+- workflow templates and workflow runs
+- DD report reads, updates, and exports
+- multi-document query runs and exports
+- first-pass workspace outputs
 
 ## Monorepo Layout
 
 ```text
 apps/
-  chat/        LibreChat fork/theme and product shell
-  review/      Thin review UI for issues, exports, and playbooks
-  word-addin/  Word-first task-pane scaffold for contract workflows
+  chat/        Optional shell for account/admin-style flows
+  review/      Transitional web console path; evolving away from DD-heavy review workspace behavior
+  word-addin/  Primary Word-first task pane for review, ask, revise, and clause memory loops
 services/
-  dd-api/      FastAPI orchestration for extraction, issues, and memo generation
-  worker/      Parsing, chunking, ingestion, and export jobs
-  gateway/     LiteLLM configuration and gateway helpers
+  dd-api/      Transitional backend path name for the contract-review API
+  worker/      Async jobs for ingest, parsing, review, ask, revise, and exports
+  gateway/     Provider routing, hosted/BYOK policy, and future spend controls
 packages/
-  playbooks/   Editable YAML diligence playbooks
-  prompts/     Versioned prompts and prompt fragments
-  schemas/     Shared JSON Schema / Pydantic contracts
+  playbooks/   Editable contract review playbooks
+  prompts/     Prompt assets and prompt fragments
+  schemas/     Shared TypeScript and API contracts
   sdk/         Internal client helpers
+  standards/   House-standard comparison packs
+  workflows/   Legacy workflow templates retained during the transition
 infra/
-  Local infrastructure notes and compose assets
+  Local infrastructure notes and environment assets
 ```
 
 ## Product Principles
 
-- Source anchoring is mandatory for every extracted issue.
-- Playbooks are editable files, not hardcoded product logic.
-- Reviewers stay in control; the system proposes and cites.
-- BYOK generation should be compatible with self-hosted embeddings.
+- Word is the primary working surface.
+- Findings and answers must be document-grounded and cited.
+- Playbooks and fallback language are product memory, not hardcoded logic.
+- Users stay in control of apply actions.
+- Cost visibility and BYOK support are part of the product, not an enterprise afterthought.
 
-## Seed Workspace
+## Seed Data
 
-The seeded DD API currently exposes one demo matter:
+The seeded local database still exposes the demo matter `project-redwood`.
 
-- `project-redwood`
+That demo data remains useful for exercising uploads, review grids, legacy workflow panels, and export plumbing, but it should be treated as prototype scaffolding rather than the target solo-first experience.
 
-That workspace includes:
-
-- customer, vendor, and lease agreements
-- assignment and change-of-control issues
-- auto-renewal, exclusivity, privacy, IP, and liability callouts
-- memo-ready highlights and an exceptions list
-
-Uploaded workspaces are stored locally in:
+Uploaded local data is stored in:
 
 - `data/skua.db`
 - `uploads/<workspace-id>/...`
 
-## First Playbooks
+## Roadmap
 
-- basic commercial DD
-- customer contract sweep
-- vendor contract sweep
-- privacy / data-processing sweep
+### Alpha
 
-## Next Build Steps
+- tighten the Word review loop
+- improve anchors and citation validation
+- keep one or two strong review playbooks working end to end
+- keep the web console thin and supportive
 
-1. Improve parsing quality and source anchors, especially for DOCX pagination and table-heavy PDFs.
-2. Replace heuristic spotting with playbook-driven extraction jobs and confidence scoring.
-3. Improve library extraction quality and provenance further, especially for DOCX heading/section boundaries, table-heavy source text, and richer retrieval ranking.
-4. Expand workflow templating with richer file roles, reusable output schemas, and more per-firm artifact variants.
-5. Broaden the new Standards slice into fuller house-standard packs, fix insertion, and reusable benchmark workflows.
-6. Expand the canonical project/document/job/audit layer into the full contracts API shape from the spec.
-7. Stand up local infra for Postgres, Redis, object storage, and Langfuse.
+### Private pilot
+
+- add better tracked-change application
+- add clause-bank save and retrieval loops
+- add spend estimates and BYOK provider settings
+- improve matter and run history
+
+### Paid beta
+
+- add preference ranking over accepted and saved language
+- support re-review of changed sections
+- improve cost dashboards and trust controls
+- stabilize onboarding and small-firm workspace behavior

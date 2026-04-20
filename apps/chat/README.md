@@ -1,12 +1,15 @@
 # Chat App
 
-This app is the product shell for Skua Legal.
+This app is an optional shell for Skua Legal, not the primary v1 surface.
 
 Planned responsibilities:
 
-- LibreChat fork or theme
 - authentication and workspace entry
-- file upload entry points
-- ask-the-deal chat with cited answers
-- model and provider selection
-- BYOK settings
+- billing, provider, and BYOK settings
+- optional power-user or support workflows
+- internal admin or operations surfaces if needed later
+
+## Transition Notes
+
+- The main product direction is Word-first, not chat-first.
+- This app should be treated as optional support infrastructure unless the product path later needs a separate account or admin shell.

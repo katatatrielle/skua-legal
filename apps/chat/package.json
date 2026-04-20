@@ -2,5 +2,5 @@
   "name": "@skua/chat",
   "private": true,
   "version": "0.1.0",
-  "description": "LibreChat shell placeholder for Skua Legal"
+  "description": "Optional shell placeholder for Skua Legal"
 }

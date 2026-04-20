@@ -106,9 +106,9 @@ from app.repository import (
 )
 
 app = FastAPI(
-    title="Skua DD API",
+    title="Skua Contracts API",
     version="0.1.0",
-    description="Seed due-diligence service for workspace review, playbook loading, and first-pass outputs.",
+    description="Transitional backend API for Word-first contract review, clause memory, and legacy prototype workflows.",
 )
 
 allowed_origins = os.getenv(
