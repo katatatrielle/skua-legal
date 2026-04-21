@@ -895,6 +895,23 @@
 | Review app typecheck after Phase 5 schema expansion | `npm run typecheck:web` | Support web app still typechecks after platform ask/revise contracts were added to shared schemas/SDK | Passed | pass |
 | Word add-in typecheck after Phase 5 schema expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after platform ask/revise contracts were added to shared schemas/SDK | Passed | pass |
 | Root test script after Phase 5 ask/revise services | `npm test` | Repo-wide checks remain green with the new platform ask and revise engine | Passed | pass |
+| Word add-in typecheck after Phase 6 rewrite | `npm run typecheck:word-addin` | The Word add-in builds after switching to platform-native auth, sync, review, ask, revise, and settings routes | Passed | pass |
+| Review app typecheck after Phase 6 schema additions | `npm run typecheck:web` | Support web app remains green after shared auth/platform contract additions | Passed | pass |
+| Root test script after Phase 6 add-in rewrite | `npm test` | Repo-wide checks remain green after the Word add-in moved to platform-native auth, sync, review, ask, and revise flows | Passed | pass |
+| Python compile after Phase 7 clause-memory backend | `python3 -m compileall services/api/app` | API modules compile after clause-bank CRUD, preference signals, and ranking helpers were added | Passed | pass |
+| API suite after Phase 7 clause-memory work | `npm run test:api` | Platform ingest, review, ask, revise, clause-bank CRUD, and preference-memory flows all pass together | Passed with `17 passed` | pass |
+| Word add-in typecheck after Phase 7 clause-memory wiring | `npm run typecheck:word-addin` | The Word add-in still typechecks after replacing local saved clauses with workspace clause-bank state | Passed | pass |
+| Review app typecheck after Phase 7 schema expansion | `npm run typecheck:web` | Support web app remains green after shared clause-bank and preference-signal contracts were added | Passed | pass |
+| Root test script after Phase 7 clause-memory work | `npm test` | Repo-wide checks remain green after clause-bank CRUD, preference ranking, and add-in memory wiring | Passed | pass |
+| Python compile after Phase 8/9 provider and trust work | `python3 -m compileall services/api/app` | API modules compile after provider policy, billing, trust, audit, and deletion additions | Passed | pass |
+| API suite after Phase 8/9 provider and trust work | `npm run test:api` | Platform ingest, review, ask, revise, governance, pricing, trust, and deletion flows all pass together | Passed with `20 passed` | pass |
+| Review app typecheck after Phase 8/9 support-surface additions | `npm run typecheck:web` | Support web app still typechecks after billing, trust, and support-admin panels were added | Passed | pass |
+| Word add-in typecheck after Phase 8/9 settings expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after billing, trust, spend-estimate, audit, and deletion controls were added | Passed | pass |
+| Python compile after Phase 10 release-gate additions | `python3 -m compileall services/api/app` | API modules compile after release-criteria metrics and support-token workspace gating were added | Passed | pass |
+| API suite after Phase 10 end-to-end coverage | `npm run test:api` | Platform API tests cover the new end-to-end pilot path and failure-path release gating | Passed with `22 passed` | pass |
+| Review app typecheck after Phase 10 dashboard additions | `npm run typecheck:web` | Support web app still typechecks after release-criteria and pilot-kit panels were added | Passed | pass |
+| Word add-in typecheck after Phase 10 docs-only changes | `npm run typecheck:word-addin` | Word add-in still typechecks with the new pilot docs and unchanged host UI surface | Passed | pass |
+| Root test script after Phase 10 pilot readiness work | `npm test` | Repo-wide checks remain green after end-to-end tests, release dashboard wiring, and pilot-kit docs | Passed with `22 passed` API suite plus clean web/add-in typechecks and API compile | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -908,6 +925,11 @@
 | 2026-04-19 | Parallel `npm test` plus standalone review build hit the known `.next` file race again during template-driven export verification | 1 | Kept the successful standalone builds and reran `npm test` serially in isolation. |
 | 2026-04-19 | Standards UI initially failed typecheck because inline clause rendering widened to `unknown` | 1 | Added an explicit `StandardsClauseView` type and rendered optional fields directly. |
 | 2026-04-20 | New Office insert-after helper initially used unsupported typings for `InsertLocation.after` and assumed `insertText` returned a `Range` | 1 | Switched to the literal `"After"` API value and returned an anchor snapshot built from the inserted text. |
+| 2026-04-20 | Saved clause language was initially only surfaced for redline findings during Phase 7 verification | 1 | Broadened review output so actionable comment findings can also carry preferred clause-bank fallback language. |
+| 2026-04-20 | Initial Phase 8 provider validation treated every stored secret as BYOK and broke the older hosted-mode provider-config test | 1 | Treated only explicit BYOK plans or provider-native key prefixes as BYOK and kept opaque secrets compatible with hosted mode. |
+| 2026-04-20 | Platform audit-event route initially collided with the legacy repository `list_audit_events` import | 1 | Aliased the platform audit helper import and routed the endpoint to the platform-specific implementation. |
+| 2026-04-20 | Support web billing/trust panel wiring initially failed on a missing comma in the expanded props destructuring | 1 | Fixed the destructuring syntax and reran the web typecheck. |
+| 2026-04-20 | The support web billing panel still depended on an authenticated user even though the web surface uses a support token | 1 | Allowed billing and release-criteria routes to authorize via support token or workspace auth and updated the support web fetch headers. |
 
 ## 5-Question Reboot Check
 | Question | Answer |

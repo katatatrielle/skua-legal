@@ -1,0 +1,9 @@
+SAAS AGREEMENT
+
+Data Use. Vendor may use Customer Data, usage data, and service telemetry to train generalized machine learning systems.
+
+Suspension. Vendor may suspend or disable access to the Services immediately and at its sole discretion.
+
+Pricing. Vendor may increase renewal fees on thirty days' notice.
+
+Security. Vendor will maintain commercially reasonable security controls.

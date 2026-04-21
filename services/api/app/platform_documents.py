@@ -65,6 +65,7 @@ def create_platform_document_upload(
     content: bytes,
     source_kind: str,
     request_id: str | None,
+    actor_user_id: str | None = None,
     selection_text: str | None = None,
 ) -> PlatformDocumentIngestRecord:
     workspace = session.execute(select(Workspace).where(Workspace.id == workspace_id)).scalar_one_or_none()
@@ -136,6 +137,7 @@ def create_platform_document_upload(
     insert_platform_audit_event(
         session,
         workspace_id=workspace_id,
+        actor_user_id=actor_user_id,
         entity_type="document_version",
         entity_id=version_id,
         action="document.uploaded",
@@ -156,6 +158,7 @@ def create_selection_upload(
     *,
     payload: PlatformSelectionIngestRequest,
     request_id: str | None,
+    actor_user_id: str | None = None,
 ) -> PlatformDocumentIngestRecord:
     content = payload.selection_text.encode("utf-8")
     return create_platform_document_upload(
@@ -166,6 +169,7 @@ def create_selection_upload(
         content=content,
         source_kind="word_selection",
         request_id=request_id,
+        actor_user_id=actor_user_id,
         selection_text=payload.selection_text,
     )
 
@@ -225,6 +229,7 @@ def run_document_pipeline(session: Session, *, document_version_id: str, request
         insert_platform_audit_event(
             session,
             workspace_id=version.workspace_id,
+            actor_user_id=None,
             entity_type="document_version",
             entity_id=version.id,
             action="document.parse_failed",
@@ -248,6 +253,7 @@ def run_document_pipeline(session: Session, *, document_version_id: str, request
     insert_platform_audit_event(
         session,
         workspace_id=version.workspace_id,
+        actor_user_id=None,
         entity_type="document_version",
         entity_id=version.id,
         action="document.parsed",
@@ -440,6 +446,7 @@ def insert_platform_audit_event(
     session: Session,
     *,
     workspace_id: str,
+    actor_user_id: str | None,
     entity_type: str,
     entity_id: str,
     action: str,
@@ -450,7 +457,7 @@ def insert_platform_audit_event(
         AuditEventPlatform(
             id=f"paudit-{uuid4().hex[:12]}",
             workspace_id=workspace_id,
-            actor_user_id=None,
+            actor_user_id=actor_user_id,
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,

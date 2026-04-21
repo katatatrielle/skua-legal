@@ -165,3 +165,32 @@
 - Selection-local retrieval materially changes answer quality. Without it, ask tends to overfit the document’s nearest matching clause; with it, the engine can stay anchored to the user’s current clause context, which is the actual job to be done in Word.
 - Clause bank context should beat playbook defaults when both are available. The user’s own fallback language is the more personal and higher-value source, so the service should only fall back to generic playbook language when no clause-bank match is provided.
 - Guardrails need to be structural, not aspirational. Enforcing a short-answer format for ask and an explicit `Suggested language:` label for revise keeps the platform inside the contract-tool lane even when the underlying generation is deterministic and simple.
+
+## Phase 37 Findings
+
+- The add-in had reached the point where patching the older DD-oriented UI would cost more than replacing it. A smaller platform-native pane is easier to reason about and matches the narrowed product contract more closely.
+- Word sync needs two layers of duplicate protection. Client-side text hashes avoid unnecessary uploads during a session, and backend SHA-256 dedupe keeps repeated document snapshots from multiplying stored versions.
+- Word-side apply actions are useful even before backend apply-event persistence exists. For Phase 6, the important part is that the lawyer can jump to the cited clause, apply the edit in Word, and undo it on the host where feasible.
+- Saved clauses can be meaningfully useful before full backend CRUD exists. Local add-in storage is enough to let reviewers keep fallback language between review and revise operations while Phase 7 turns that into a real clause bank.
+- The QA boundary for the add-in should be explicit. Host/runtime differences, plaintext document sync, and best-match anchor relocation are acceptable for this phase only if they are documented up front.
+
+## Phase 38 Findings
+
+- The clause-bank tables were already in the platform schema, so the real Phase 7 leverage was not another migration. It was wiring retrieval, ranking, and add-in actions onto those existing rows so saved language actually changes product behavior.
+- Review should surface preferred saved language even for comment findings, not only redline findings. Lawyers still need reusable fallback text when the platform’s primary recommendation is “comment on this clause,” so preferred language belongs on the finding whenever a good clause-bank match exists.
+- Preference memory works best when the rules stay interpretable. An explicit additive score from saved clauses, accepted suggestions, reused clauses, and dismissed findings is easier to debug than a vague personalization layer.
+- The add-in was the last blocker to making clause memory real. Until Saved Clauses stopped writing to `localStorage`, the backend clause bank could not improve revise or review in a way the user would actually feel.
+
+## Phase 39 Findings
+
+- The platform already had most of the Phase 8 schema, so the hard part was making it operational: every run now needs a provider policy, a spend estimate, cap enforcement, and a usage-ledger write or the pricing layer is just dead metadata.
+- BYOK validation needed to stay compatible with the existing repo shape. Treating explicit `plan: "byok"` or provider-native key prefixes as BYOK while leaving older opaque secrets as hosted-mode configs kept the new policy layer from breaking preexisting tests and local setups.
+- Trust and deletion work only feel real once they are reachable from the product surface. Backend delete endpoints alone are not enough; the add-in needed minimal document/matter deletion controls and readable trust-center copy.
+- Support/admin does not require a second full product surface. A support-token-gated panel in the thin web app is enough for failure counts, feature flags, usage anomalies, and a basic user-support lookup without reopening the broader workspace-first roadmap.
+
+## Phase 40 Findings
+
+- Phase 10 needed one measurable readiness surface, not another pile of ad hoc support stats. A dedicated release-criteria contract makes the parse, review, citation, apply, acceptance, and cost gates explicit enough to drive pilot decisions.
+- The support web app already had the right role for the release dashboard. Extending it with support-token-gated billing and release metrics was cheaper and clearer than adding another admin surface.
+- End-to-end coverage only counts if it crosses feature boundaries. The new Phase 10 API tests exercise upload, parse, review, apply, ask, revise, clause save, rerun review, and release gating in one path, plus a failure path that deliberately trips the readiness dashboard.
+- The remaining high-risk gap is host-level behavior in real Word clients. Writing the computer-control plan now keeps the later Computer Use pass constrained to named workflows and expected outcomes instead of exploratory clicking.

@@ -2,6 +2,8 @@ export interface WordSelectionState {
   host_available: boolean;
   host_name: string;
   platform_name: string;
+  document_name: string;
+  document_url: string | null;
   requirement_support: {
     word_api_14: boolean;
     shared_runtime_11: boolean;
@@ -34,6 +36,11 @@ export interface WordLocateResult {
   matched_text?: string | null;
 }
 
+export interface WordUndoResult {
+  ok: boolean;
+  message: string;
+}
+
 const fallback_selection =
   "Neither party may assign this Agreement without prior written consent of the other party.";
 
@@ -43,14 +50,16 @@ function has_office_runtime() {
 
 export async function get_word_selection_state(): Promise<WordSelectionState> {
   if (!has_office_runtime()) {
-    return {
-      host_available: false,
-      host_name: "browser-preview",
-      platform_name: "web",
-      requirement_support: {
-        word_api_14: false,
-        shared_runtime_11: false
-      },
+      return {
+        host_available: false,
+        host_name: "browser-preview",
+        platform_name: "web",
+        document_name: "Browser Preview Document",
+        document_url: null,
+        requirement_support: {
+          word_api_14: false,
+          shared_runtime_11: false
+        },
       selection_text: fallback_selection,
       document_text: fallback_selection,
       selection_ooxml: null,
@@ -67,10 +76,13 @@ export async function get_word_selection_state(): Promise<WordSelectionState> {
   );
 
   if (info.host !== Office.HostType.Word) {
+    const document_url = get_office_document_url();
     return {
       host_available: false,
       host_name: info.host,
       platform_name: info.platform,
+      document_name: derive_document_name(document_url),
+      document_url,
       requirement_support: {
         word_api_14,
         shared_runtime_11
@@ -85,6 +97,7 @@ export async function get_word_selection_state(): Promise<WordSelectionState> {
 
   try {
     return await Word.run(async (context) => {
+      const document_url = get_office_document_url();
       const document = context.document;
       const selection = document.getSelection();
       const selection_ooxml = selection.getOoxml();
@@ -99,6 +112,8 @@ export async function get_word_selection_state(): Promise<WordSelectionState> {
         host_available: true,
         host_name: info.host,
         platform_name: info.platform,
+        document_name: derive_document_name(document_url, body.text),
+        document_url,
         requirement_support: {
           word_api_14,
           shared_runtime_11
@@ -111,10 +126,13 @@ export async function get_word_selection_state(): Promise<WordSelectionState> {
       };
     });
   } catch (error) {
+    const document_url = get_office_document_url();
     return {
       host_available: false,
       host_name: info.host,
       platform_name: info.platform,
+      document_name: derive_document_name(document_url),
+      document_url,
       requirement_support: {
         word_api_14,
         shared_runtime_11
@@ -126,6 +144,53 @@ export async function get_word_selection_state(): Promise<WordSelectionState> {
       status_message: build_error_message(error, "Unable to read the current Word selection.")
     };
   }
+}
+
+export async function undo_last_word_action(): Promise<WordUndoResult> {
+  if (!has_office_runtime()) {
+    return {
+      ok: false,
+      message: "Word undo is not available in this browser preview."
+    };
+  }
+
+  await Office.onReady();
+  const context_with_document = Office.context as unknown as {
+    document?: {
+      undoAsync?: (
+        callback: (result: { status: string; error?: unknown }) => void
+      ) => void;
+    };
+  };
+  const document_with_undo = context_with_document.document as {
+    undoAsync?: (
+      callback: (result: { status: string; error?: unknown }) => void
+    ) => void;
+  };
+
+  if (typeof document_with_undo.undoAsync !== "function") {
+    return {
+      ok: false,
+      message: "Use Word Undo (Ctrl/Cmd+Z) on this host to roll back the last applied edit."
+    };
+  }
+
+  return await new Promise<WordUndoResult>((resolve) => {
+    document_with_undo.undoAsync?.((result) => {
+      if (String(result.status).toLowerCase() === "succeeded") {
+        resolve({
+          ok: true,
+          message: "Undid the last Word edit."
+        });
+        return;
+      }
+
+      resolve({
+        ok: false,
+        message: build_error_message(result.error, "Unable to undo the last Word edit.")
+      });
+    });
+  });
 }
 
 export async function apply_comment_to_selection(content: string): Promise<WordApplyResult> {
@@ -363,4 +428,36 @@ function build_search_query(value: string) {
   );
 
   return (boundary > 80 ? truncated.slice(0, boundary) : truncated).trim();
+}
+
+function derive_document_name(document_url: string | null | undefined, fallback_text?: string) {
+  if (document_url) {
+    const trimmed = document_url.split("?")[0] ?? document_url;
+    const parts = trimmed.split("/");
+    const last = parts[parts.length - 1];
+    if (last) {
+      return decodeURIComponent(last);
+    }
+  }
+
+  if (fallback_text) {
+    const first_line = fallback_text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+    if (first_line) {
+      return `${first_line.slice(0, 48)}.txt`;
+    }
+  }
+
+  return "Current Word Document.txt";
+}
+
+function get_office_document_url() {
+  const context_with_document = Office.context as unknown as {
+    document?: {
+      url?: string | null;
+    };
+  };
+  return context_with_document.document?.url ?? null;
 }

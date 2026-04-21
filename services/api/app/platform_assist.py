@@ -19,18 +19,19 @@ from app.models import (
     PlatformReviseRunRecord,
 )
 from app.platform_db import platform_session
+from app.platform_memory import find_matching_clause_bank_entries, summarize_preference_signals
 from app.platform_models import (
     AskAnswer,
     AskRunPlatform,
     AuditEventPlatform,
     Citation,
-    ClauseBankEntry,
     DocumentSegment,
     DocumentVersion,
     Playbook,
     ReviseRun,
 )
 from app.platform_parsing import PlatformSegment, build_embedding_tokens, search_segments
+from app.platform_provider import enforce_spend_controls, estimate_usage, record_usage_ledger, resolve_provider_runtime
 from app.platform_review import hydrate_playbook_record, sync_platform_playbooks
 from app.queueing import get_queue
 
@@ -81,6 +82,7 @@ class ClauseBankMatch:
     issue_type: str | None
     title: str
     text: str
+    source: str | None = None
 
 
 def utcnow() -> datetime:
@@ -92,10 +94,22 @@ def create_platform_ask_run(
     *,
     payload: PlatformAskRunCreateRequest,
     request_id: str | None,
+    actor_user_id: str | None = None,
 ) -> PlatformAskRunRecord:
     version = _get_document_version(session, payload.document_version_id)
     if version.workspace_id != payload.workspace_id:
         raise ValueError("Document version does not belong to the workspace.")
+
+    runtime = resolve_provider_runtime(session, workspace_id=payload.workspace_id, capability="ask")
+    estimate = estimate_usage(
+        session,
+        workspace_id=payload.workspace_id,
+        run_type="ask",
+        runtime=runtime,
+        input_texts=[payload.question, payload.selection_text or ""],
+        output_texts=["short cited answer"],
+    )
+    enforce_spend_controls(estimate)
 
     ask_run = AskRunPlatform(
         id=f"pask-{uuid4().hex[:12]}",
@@ -111,11 +125,17 @@ def create_platform_ask_run(
     _insert_audit_event(
         session,
         workspace_id=payload.workspace_id,
+        actor_user_id=actor_user_id,
         entity_type="ask_run",
         entity_id=ask_run.id,
         action="ask.created",
         request_id=request_id,
-        payload={"document_version_id": version.id},
+        payload={
+            "document_version_id": version.id,
+            "estimated_cost": estimate.estimated_cost,
+            "provider": runtime.provider,
+            "model": runtime.model,
+        },
     )
     session.flush()
 
@@ -140,10 +160,22 @@ def create_platform_revise_run(
     *,
     payload: PlatformReviseRunCreateRequest,
     request_id: str | None,
+    actor_user_id: str | None = None,
 ) -> PlatformReviseRunRecord:
     version = _get_document_version(session, payload.document_version_id)
     if version.workspace_id != payload.workspace_id:
         raise ValueError("Document version does not belong to the workspace.")
+
+    runtime = resolve_provider_runtime(session, workspace_id=payload.workspace_id, capability="revise")
+    estimate = estimate_usage(
+        session,
+        workspace_id=payload.workspace_id,
+        run_type="revise",
+        runtime=runtime,
+        input_texts=[payload.instruction, payload.selected_text],
+        output_texts=["suggested language revision"],
+    )
+    enforce_spend_controls(estimate)
 
     revise_run = ReviseRun(
         id=f"prev-{uuid4().hex[:12]}",
@@ -161,6 +193,7 @@ def create_platform_revise_run(
     _insert_audit_event(
         session,
         workspace_id=payload.workspace_id,
+        actor_user_id=actor_user_id,
         entity_type="revise_run",
         entity_id=revise_run.id,
         action="revise.created",
@@ -169,6 +202,9 @@ def create_platform_revise_run(
             "document_version_id": version.id,
             "playbook_id": payload.playbook_id,
             "clause_bank_entry_ids": payload.clause_bank_entry_ids,
+            "estimated_cost": estimate.estimated_cost,
+            "provider": runtime.provider,
+            "model": runtime.model,
         },
     )
     session.flush()
@@ -242,6 +278,7 @@ def run_platform_ask(session: Session, *, ask_run_id: str, request_id: str | Non
         _insert_audit_event(
             session,
             workspace_id=ask_run.workspace_id,
+            actor_user_id=None,
             entity_type="ask_run",
             entity_id=ask_run.id,
             action="ask.unsupported",
@@ -283,11 +320,32 @@ def run_platform_ask(session: Session, *, ask_run_id: str, request_id: str | Non
     _insert_audit_event(
         session,
         workspace_id=ask_run.workspace_id,
+        actor_user_id=None,
         entity_type="ask_run",
         entity_id=ask_run.id,
         action="ask.completed",
         request_id=request_id,
         payload={"supported": supported, "citation_count": len(selected_segments)},
+    )
+    usage_estimate = estimate_usage(
+        session,
+        workspace_id=ask_run.workspace_id,
+        run_type="ask",
+        runtime=resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask"),
+        input_texts=[ask_run.question, ask_run.selection_text or ""],
+        output_texts=[answer_text],
+    )
+    record_usage_ledger(
+        session,
+        workspace_id=ask_run.workspace_id,
+        run_type="ask",
+        run_id=ask_run.id,
+        provider=resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask").provider,
+        model=resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask").model,
+        input_tokens=usage_estimate.estimated_input_tokens,
+        output_tokens=usage_estimate.estimated_output_tokens,
+        estimated_cost=usage_estimate.estimated_cost,
+        actual_cost=usage_estimate.estimated_cost,
     )
     session.flush()
 
@@ -307,10 +365,17 @@ def run_platform_revise(
     revise_run.status = "running"
     session.flush()
 
-    clause_matches = load_clause_bank_matches(session, payload.clause_bank_entry_ids)
     playbook_match = resolve_playbook_match(
         session,
         playbook_id=payload.playbook_id,
+        instruction=payload.instruction,
+        selected_text=payload.selected_text,
+    )
+    clause_matches = load_clause_bank_matches(
+        session,
+        workspace_id=revise_run.workspace_id,
+        entry_ids=payload.clause_bank_entry_ids,
+        playbook_match=playbook_match,
         instruction=payload.instruction,
         selected_text=payload.selected_text,
     )
@@ -332,6 +397,19 @@ def run_platform_revise(
     else:
         suggested_text = build_fallback_revision(payload.selected_text, payload.instruction)
         rationale = "Suggested language based on the selected clause and the closest grounded document context."
+
+    if clause_matches:
+        preference = summarize_preference_signals(
+            session,
+            workspace_id=revise_run.workspace_id,
+            issue_type=clause_matches[0].issue_type,
+            contract_type=_optional_str(playbook_match, "contract_type"),
+            represented_party=_optional_str(playbook_match, "represented_party"),
+        )
+        if preference["signal_count"]:
+            rationale = (
+                f"{rationale} Ranking also reflects {preference['signal_count']} prior workspace preference signal(s)."
+            )
 
     revise_run.suggested_text = suggested_text.strip()
     revise_run.rationale = enforce_revise_guardrails(rationale)
@@ -355,6 +433,7 @@ def run_platform_revise(
     _insert_audit_event(
         session,
         workspace_id=revise_run.workspace_id,
+        actor_user_id=None,
         entity_type="revise_run",
         entity_id=revise_run.id,
         action="revise.completed",
@@ -364,6 +443,27 @@ def run_platform_revise(
             "clause_bank_entry_ids": payload.clause_bank_entry_ids,
             "citation_count": len(selected_segments),
         },
+    )
+    usage_estimate = estimate_usage(
+        session,
+        workspace_id=revise_run.workspace_id,
+        run_type="revise",
+        runtime=resolve_provider_runtime(session, workspace_id=revise_run.workspace_id, capability="revise"),
+        input_texts=[payload.instruction, payload.selected_text],
+        output_texts=[revise_run.suggested_text or "", revise_run.rationale or ""],
+    )
+    runtime = resolve_provider_runtime(session, workspace_id=revise_run.workspace_id, capability="revise")
+    record_usage_ledger(
+        session,
+        workspace_id=revise_run.workspace_id,
+        run_type="revise",
+        run_id=revise_run.id,
+        provider=runtime.provider,
+        model=runtime.model,
+        input_tokens=usage_estimate.estimated_input_tokens,
+        output_tokens=usage_estimate.estimated_output_tokens,
+        estimated_cost=usage_estimate.estimated_cost,
+        actual_cost=usage_estimate.estimated_cost,
     )
     session.flush()
 
@@ -530,18 +630,44 @@ def retrieve_context_segments(
     return scored
 
 
-def load_clause_bank_matches(session: Session, entry_ids: list[str]) -> list[ClauseBankMatch]:
-    if not entry_ids:
-        return []
-    rows = session.execute(
-        select(ClauseBankEntry).where(ClauseBankEntry.id.in_(entry_ids))
-    ).scalars()
+def load_clause_bank_matches(
+    session: Session,
+    *,
+    workspace_id: str,
+    entry_ids: list[str],
+    playbook_match: dict[str, object] | None,
+    instruction: str,
+    selected_text: str,
+) -> list[ClauseBankMatch]:
+    rows = []
+    if entry_ids:
+        rows = find_matching_clause_bank_entries(
+            session,
+            workspace_id=workspace_id,
+            contract_type=_optional_str(playbook_match, "contract_type"),
+            issue_type=_optional_str(playbook_match, "issue_type"),
+            represented_party=_optional_str(playbook_match, "represented_party"),
+            query=f"{instruction} {selected_text}",
+            preferred_entry_ids=entry_ids,
+            limit=max(len(entry_ids), 5),
+        )
+    else:
+        rows = find_matching_clause_bank_entries(
+            session,
+            workspace_id=workspace_id,
+            contract_type=_optional_str(playbook_match, "contract_type"),
+            issue_type=_optional_str(playbook_match, "issue_type"),
+            represented_party=_optional_str(playbook_match, "represented_party"),
+            query=f"{instruction} {selected_text}",
+            limit=5,
+        )
     return [
         ClauseBankMatch(
             id=row.id,
             issue_type=row.issue_type,
             title=row.title,
             text=row.text,
+            source=row.source,
         )
         for row in rows
     ]
@@ -596,6 +722,8 @@ def resolve_playbook_match(
                     "issue_type": rule.issue_type,
                     "suggested_text": suggested_text,
                     "source_label": playbook.name,
+                    "contract_type": playbook.contract_type,
+                    "represented_party": playbook.represented_party,
                 }
                 best_score = score
     return best if best_score > 0 else None
@@ -700,6 +828,13 @@ def normalize_clause_sentence(text: str) -> str:
     return normalized
 
 
+def _optional_str(payload: dict[str, object] | None, key: str) -> str | None:
+    if not payload:
+        return None
+    value = payload.get(key)
+    return value if isinstance(value, str) and value else None
+
+
 def _get_document_version(session: Session, document_version_id: str) -> DocumentVersion:
     row = session.execute(
         select(DocumentVersion).where(DocumentVersion.id == document_version_id)
@@ -713,6 +848,7 @@ def _insert_audit_event(
     session: Session,
     *,
     workspace_id: str,
+    actor_user_id: str | None,
     entity_type: str,
     entity_id: str,
     action: str,
@@ -723,7 +859,7 @@ def _insert_audit_event(
         AuditEventPlatform(
             id=f"paudit-{uuid4().hex[:12]}",
             workspace_id=workspace_id,
-            actor_user_id=None,
+            actor_user_id=actor_user_id,
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,

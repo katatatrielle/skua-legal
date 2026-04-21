@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import PlatformUserRecord, PlatformWorkspaceRecord, ProviderConfigRecord
 from app.platform_auth import ensure_platform_workspace, ensure_workspace_membership, get_workspace_ids_for_user
+from app.platform_provider import encrypt_secret, mask_secret, normalize_model_policy, validate_provider_config
 from app.platform_models import Membership, ProviderConfig, User, Workspace
 
 
@@ -69,17 +70,22 @@ def create_provider_config(
     encrypted_secret: str | None,
     model_policy: dict[str, object],
 ) -> ProviderConfigRecord:
+    plan_type, normalized_policy = validate_provider_config(
+        provider_name=provider_name,
+        raw_secret=encrypted_secret,
+        model_policy=model_policy,
+    )
     config = ProviderConfig(
         id=f"pcfg-{uuid4().hex[:12]}",
         workspace_id=workspace_id,
         provider_name=provider_name.strip(),
-        encrypted_secret=encrypted_secret,
-        model_policy_json=model_policy,
+        encrypted_secret=encrypt_secret(encrypted_secret),
+        model_policy_json=normalized_policy,
         is_active=True,
     )
     session.add(config)
     session.flush()
-    return build_provider_config_record(config)
+    return build_provider_config_record(config, plan_type=plan_type)
 
 
 def list_provider_configs(session: Session, *, workspace_id: str) -> list[ProviderConfigRecord]:
@@ -89,15 +95,12 @@ def list_provider_configs(session: Session, *, workspace_id: str) -> list[Provid
     return [build_provider_config_record(row) for row in rows]
 
 
-def get_provider_config(session: Session, config_id: str) -> ProviderConfigRecord | None:
-    config = session.execute(select(ProviderConfig).where(ProviderConfig.id == config_id)).scalar_one_or_none()
-    if config is None:
-        return None
-    return build_provider_config_record(config)
+def get_provider_config(session: Session, config_id: str) -> ProviderConfig | None:
+    return session.execute(select(ProviderConfig).where(ProviderConfig.id == config_id)).scalar_one_or_none()
 
 
 def delete_provider_config(session: Session, config_id: str) -> ProviderConfigRecord | None:
-    config = session.execute(select(ProviderConfig).where(ProviderConfig.id == config_id)).scalar_one_or_none()
+    config = get_provider_config(session, config_id)
     if config is None:
         return None
     record = build_provider_config_record(config)
@@ -105,13 +108,19 @@ def delete_provider_config(session: Session, config_id: str) -> ProviderConfigRe
     return record
 
 
-def build_provider_config_record(config: ProviderConfig) -> ProviderConfigRecord:
+def build_provider_config_record(config: ProviderConfig, *, plan_type: str | None = None) -> ProviderConfigRecord:
+    normalized_policy = normalize_model_policy(config.model_policy_json or {})
+    resolved_plan_type = plan_type or ("byok" if config.encrypted_secret else str(normalized_policy.get("plan") or "hosted"))
     return ProviderConfigRecord(
         id=config.id,
         workspace_id=config.workspace_id,
         provider_name=config.provider_name,
-        encrypted_secret=config.encrypted_secret,
-        model_policy=config.model_policy_json,
+        encrypted_secret=None,
+        model_policy=normalized_policy,
         is_active=config.is_active,
+        plan_type=resolved_plan_type,
+        validation_status="valid",
+        has_secret=bool(config.encrypted_secret),
+        masked_secret=mask_secret(config.encrypted_secret),
         created_at=config.created_at.isoformat(),
     )

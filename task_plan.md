@@ -4,9 +4,17 @@
 Reset the repo around the solo-first, Word-native contract copilot and implement the first execution slice: rename repo boundaries to match the v1 product story, remove non-v1 surfaces, narrow the visible UI to Review, Ask, Revise, Saved Clauses, and Settings, and keep the stack runnable after the transition.
 
 ## Current Phase
-Phase 36
+Phase 37
 
 ## Phases
+
+### Phase 37: Phase 6 Word Add-in Core Experience
+- [x] Add add-in auth/session handling and workspace selection against the platform APIs
+- [x] Add document and selection sync from Word with local session association and duplicate-avoidance
+- [x] Replace the add-in review, ask, revise, apply, and anchor-jump flows with platform-native behavior
+- [x] Add local saved-clause handling plus provider-settings routes inside the narrowed add-in surface
+- [x] Document the manual Word QA matrix and known host/runtime bounds
+- **Status:** complete
 
 ### Phase 36: Phase 5 Ask and Revise Engines
 - [x] Add persisted platform ask/revise contracts in Python and TypeScript
@@ -347,3 +355,33 @@ Phase 36
 ## Notes
 - Re-read this plan before major decisions.
 - Update findings and progress as the implementation evolves.
+
+### Phase 38: Phase 7 Clause Bank and Preference Memory
+- [x] Add backend workspace clause-bank CRUD and preference-signal platform routes
+- [x] Extend shared schemas and SDK contracts for clause memory and preference capture
+- [x] Rank review findings with saved-clause and preference-signal boosts
+- [x] Retrieve workspace clause-bank matches automatically during revise and prefer them over generic defaults
+- [x] Replace Word add-in local saved clauses with workspace-backed clause-bank CRUD
+- [x] Emit preference signals from Word when findings are applied or dismissed and when saved clauses are reused
+- [x] Verify API tests, add-in typecheck, and repo-wide checks
+- **Status:** complete
+
+### Phase 39: Phase 8 and 9 Pricing, Trust, and Supportability
+- [x] Add provider policy resolution, BYOK validation, encrypted provider-secret storage, and hosted-mode defaults
+- [x] Record usage ledger rows for review, ask, and revise runs and expose workspace billing summaries
+- [x] Add spend-estimate and cap-enforcement endpoints plus add-in preflight cost messaging
+- [x] Add trust-center and audit-trail endpoints with support-admin overview and feature flags
+- [x] Add platform apply-event logging plus actor-aware audit events for key user actions
+- [x] Add document and matter deletion endpoints plus add-in deletion controls
+- [x] Expose billing/trust/admin surfaces in the Word add-in and thin support web app
+- [x] Verify API tests, web typecheck, add-in typecheck, and repo-wide checks
+- **Status:** complete
+
+### Phase 40: Phase 10 Pilot Readiness
+- [x] Add a release-criteria dashboard contract and workspace-scoped readiness endpoint
+- [x] Allow the support web app to load support-token-gated billing and release metrics
+- [x] Add end-to-end API tests for upload, parse, review, apply, ask, revise, save clause, rerun review, and release-gate failure paths
+- [x] Add pilot kit documentation, sample matters/contracts, and an issue-reporting flow
+- [x] Write the full computer-control execution checklist for the later Word host run
+- [ ] Run the later manual Computer Use pass on live Word hosts
+- **Status:** complete

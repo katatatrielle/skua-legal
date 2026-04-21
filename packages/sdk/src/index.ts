@@ -16,14 +16,28 @@ import type {
   PlaybookSavedNoteRecord,
   PlatformAnchorRelocationRequest,
   PlatformAnchorRelocationResult,
+  PlatformAdminOverviewRecord,
+  PlatformApplyEventCreateRequest,
+  PlatformApplyEventRecord,
   PlatformAskRunCreateRequest,
   PlatformAskRunRecord,
+  PlatformAuditEventRecord,
+  PlatformClauseBankEntryCreateRequest,
+  PlatformClauseBankEntryRecord,
+  PlatformClauseBankEntryUpdateRequest,
   PlatformDocumentIngestRecord,
   PlatformPlaybookRecord,
+  PlatformPreferenceSignalCreateRequest,
+  PlatformPreferenceSignalRecord,
+  PlatformReleaseCriteriaRecord,
   PlatformReviseRunCreateRequest,
   PlatformReviseRunRecord,
   PlatformReviewRunCreateRequest,
   PlatformReviewRunRecord,
+  PlatformSpendEstimateRecord,
+  PlatformSpendEstimateRequest,
+  PlatformTrustRecord,
+  PlatformUsageSummaryRecord,
   PlatformDocumentSearchRequest,
   PlatformDocumentSearchResult,
   PlatformDocumentVersionDetailRecord,
@@ -272,6 +286,172 @@ export class DdApiClient {
   ): Promise<PlatformReviseRunRecord[]> {
     return this.fetch_json<PlatformReviseRunRecord[]>(
       `/api/v1/platform/document-versions/${document_version_id}/revise-runs`
+    );
+  }
+
+  async list_platform_clause_bank_entries(
+    workspace_id: string,
+    options: {
+      contract_type?: string;
+      issue_type?: string;
+      represented_party?: string;
+      search_query?: string;
+    } = {}
+  ): Promise<PlatformClauseBankEntryRecord[]> {
+    const params = new URLSearchParams({ workspace_id });
+    if (options.contract_type) {
+      params.set("contract_type", options.contract_type);
+    }
+    if (options.issue_type) {
+      params.set("issue_type", options.issue_type);
+    }
+    if (options.represented_party) {
+      params.set("represented_party", options.represented_party);
+    }
+    if (options.search_query) {
+      params.set("search_query", options.search_query);
+    }
+    return this.fetch_json<PlatformClauseBankEntryRecord[]>(
+      `/api/v1/platform/clause-bank?${params.toString()}`
+    );
+  }
+
+  async create_platform_clause_bank_entry(
+    payload: PlatformClauseBankEntryCreateRequest
+  ): Promise<PlatformClauseBankEntryRecord> {
+    return this.fetch_json<PlatformClauseBankEntryRecord>("/api/v1/platform/clause-bank", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async update_platform_clause_bank_entry(
+    entry_id: string,
+    payload: PlatformClauseBankEntryUpdateRequest
+  ): Promise<PlatformClauseBankEntryRecord> {
+    return this.fetch_json<PlatformClauseBankEntryRecord>(
+      `/api/v1/platform/clause-bank/${entry_id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  async delete_platform_clause_bank_entry(entry_id: string): Promise<PlatformClauseBankEntryRecord> {
+    return this.fetch_json<PlatformClauseBankEntryRecord>(
+      `/api/v1/platform/clause-bank/${entry_id}`,
+      {
+        method: "DELETE"
+      }
+    );
+  }
+
+  async create_platform_preference_signal(
+    payload: PlatformPreferenceSignalCreateRequest
+  ): Promise<PlatformPreferenceSignalRecord> {
+    return this.fetch_json<PlatformPreferenceSignalRecord>("/api/v1/platform/preference-signals", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async estimate_platform_spend(
+    payload: PlatformSpendEstimateRequest
+  ): Promise<PlatformSpendEstimateRecord> {
+    return this.fetch_json<PlatformSpendEstimateRecord>("/api/v1/platform/spend-estimate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async get_platform_billing_summary(workspace_id: string): Promise<PlatformUsageSummaryRecord> {
+    return this.fetch_json<PlatformUsageSummaryRecord>(
+      `/api/v1/platform/workspaces/${workspace_id}/billing`
+    );
+  }
+
+  async list_platform_audit_events(workspace_id: string, limit = 50): Promise<PlatformAuditEventRecord[]> {
+    return this.fetch_json<PlatformAuditEventRecord[]>(
+      `/api/v1/platform/workspaces/${workspace_id}/audit-events?limit=${encodeURIComponent(String(limit))}`
+    );
+  }
+
+  async create_platform_apply_event(
+    payload: PlatformApplyEventCreateRequest
+  ): Promise<PlatformApplyEventRecord> {
+    return this.fetch_json<PlatformApplyEventRecord>("/api/v1/platform/apply-events", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  async delete_platform_document(document_id: string): Promise<string> {
+    const response = await fetch(`${this.base_url}/api/v1/platform/documents/${document_id}`, {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.text();
+  }
+
+  async delete_platform_matter(matter_id: string): Promise<string> {
+    const response = await fetch(`${this.base_url}/api/v1/platform/matters/${matter_id}`, {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.text();
+  }
+
+  async get_platform_trust(): Promise<PlatformTrustRecord> {
+    return this.fetch_json<PlatformTrustRecord>("/api/v1/platform/trust");
+  }
+
+  async get_platform_admin_overview(
+    user_email?: string,
+    support_token?: string
+  ): Promise<PlatformAdminOverviewRecord> {
+    const params = user_email ? `?user_email=${encodeURIComponent(user_email)}` : "";
+    return this.fetch_json<PlatformAdminOverviewRecord>(`/api/v1/platform/admin/overview${params}`, {
+      headers: support_token
+        ? {
+            "x-skua-support-token": support_token
+          }
+        : undefined
+    });
+  }
+
+  async get_platform_release_criteria(
+    workspace_id: string,
+    support_token?: string
+  ): Promise<PlatformReleaseCriteriaRecord> {
+    return this.fetch_json<PlatformReleaseCriteriaRecord>(
+      `/api/v1/platform/workspaces/${workspace_id}/release-criteria`,
+      {
+        headers: support_token
+          ? {
+              "x-skua-support-token": support_token
+            }
+          : undefined
+      }
     );
   }
 

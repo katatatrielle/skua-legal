@@ -1,67 +1,69 @@
 "use client";
 
-import { useEffect, useDeferredValue, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
-  AskRunCreateRequest,
-  AskRunRecord,
-  DraftRunCreateRequest,
-  DraftRunRecord,
-  PlaybookRecord,
-  PlaybookSavedNoteRecord,
-  SeverityLevel,
-  ReviewRunCreateRequest,
-  ReviewRunRecord,
-  ReviewSuggestionRecord,
-  ReviewSuggestionSaveToPlaybookRequest,
-  StandardsFixMode,
-  StandardsMissingClause,
-  StandardsRunCreateRequest,
-  StandardsRunRecord,
-  StandardsTemplateRecord,
-  StandardsWeakClause
+  AuthLoginRequest,
+  AuthRegisterRequest,
+  AuthTokenResponse,
+  PlatformAskRunRecord,
+  PlatformClauseBankEntryCreateRequest,
+  PlatformClauseBankEntryRecord,
+  PlatformClauseBankEntryUpdateRequest,
+  PlatformDocumentIngestRecord,
+  PlatformDocumentVersionRecord,
+  PlatformMatterRecord,
+  PlatformPlaybookRecord,
+  PlatformApplyEventCreateRequest,
+  PlatformPreferenceSignalCreateRequest,
+  PlatformReviewCitationRecord,
+  PlatformReviewFindingRecord,
+  PlatformReviewRunRecord,
+  PlatformReviseRunRecord,
+  PlatformSpendEstimateRecord,
+  PlatformTrustRecord,
+  PlatformUsageSummaryRecord,
+  PlatformUserRecord,
+  PlatformWorkspaceRecord,
+  ProviderConfigCreateRequest,
+  ProviderConfigRecord
 } from "@skua/schemas";
-import {
-  ask_run,
-  draft_run,
-  draft_results,
-  pane_context,
-  playbooks,
-  standards_result
-} from "./mock-data";
 import {
   apply_comment_to_selection,
   apply_redline_to_selection,
   get_word_selection_state,
   insert_text_after_selection,
   locate_quote_in_document,
-  type WordSelectionState
+  type WordSelectionState,
+  undo_last_word_action
 } from "../lib/office";
 
 type TabId = "review" | "ask" | "revise" | "saved" | "settings";
-type SeverityFilter = "all" | ReviewSuggestionRecord["severity"];
-type StatusFilter = "all" | ReviewSuggestionRecord["status"];
-type TypeFilter = "all" | string;
-type PlaybookSaveOptions = {
-  playbook_id?: string | null;
-  playbook_check_id?: string | null;
-};
-type StandardsClauseView = {
-  clause_id: string;
+type SyncScope = "full_document" | "selection";
+type SessionMode = "login" | "register";
+type LocalFindingStatus =
+  | "open"
+  | "applied_comment"
+  | "applied_redline"
+  | "saved_clause"
+  | "dismissed";
+
+type ClauseBankFormState = {
+  contract_type: string;
+  issue_type: string;
+  represented_party: string;
   title: string;
-  action: string;
-  explanation: string;
-  suggested_fix: string;
-  severity: string;
-  fix_mode: StandardsFixMode;
-  matched_excerpt?: string | null;
+  text: string;
 };
-type StandardsResultView = {
-  score: number;
-  missing_clauses: StandardsMissingClause[];
-  weak_clauses: StandardsClauseView[];
+
+type StoredDocumentSession = {
+  identity: string;
+  full_document_hash?: string | null;
+  full_document_version?: PlatformDocumentVersionRecord | null;
+  selection_hash?: string | null;
+  selection_version?: PlatformDocumentVersionRecord | null;
+  last_sync_scope?: SyncScope | null;
+  last_synced_at?: string | null;
 };
-type ReviewScopeMode = "selection" | "full_document";
-type DraftMode = "library" | "instruction" | "improve";
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "review", label: "Review" },
@@ -71,363 +73,499 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: "settings", label: "Settings" }
 ];
 
+const workspace_storage_key = "skua-word-active-workspace";
+const default_provider_policy = '{\n  "review": "gpt-5.4-mini",\n  "ask": "gpt-5.4-mini",\n  "revise": "gpt-5.4-mini",\n  "monthly_warning_usd": 25,\n  "monthly_hard_cap_usd": 100,\n  "per_run_max_estimate_usd": 5\n}';
+const supported_contract_types = [
+  { value: "saas_agreement", label: "SaaS agreement" },
+  { value: "services_agreement", label: "Services agreement" },
+  { value: "nda", label: "NDA" }
+];
+
 export function WordTaskPane({
   initialTab = "review",
-  initialScope = "selection",
-  initialAction = null,
-  initialDraftMode = "library"
+  initialScope = "selection"
 }: {
   initialTab?: TabId;
-  initialScope?: ReviewScopeMode;
-  initialAction?: "refresh_anchors" | "export_summary" | null;
-  initialDraftMode?: DraftMode;
+  initialScope?: "selection" | "full_document";
 }) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [selectedSuggestionId, setSelectedSuggestionId] = useState("");
-  const [draftQuery, setDraftQuery] = useState("assignment");
-  const [draftMode, setDraftMode] = useState<DraftMode>(initialDraftMode);
   const [selectionState, setSelectionState] = useState<WordSelectionState | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [reviewRun, setReviewRun] = useState<ReviewRunRecord | null>(null);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-  const [playbookError, setPlaybookError] = useState<string | null>(null);
-  const [isRunningReview, setIsRunningReview] = useState(false);
   const [isRefreshingSelection, setIsRefreshingSelection] = useState(false);
-  const [isRefreshingPlaybooks, setIsRefreshingPlaybooks] = useState(false);
-  const [isApplyingAction, setIsApplyingAction] = useState(false);
-  const [isLocatingAnchor, setIsLocatingAnchor] = useState(false);
-  const [isExportingSummary, setIsExportingSummary] = useState(false);
-  const [livePlaybooks, setLivePlaybooks] = useState<PlaybookRecord[]>([]);
-  const [savedPlaybookNotes, setSavedPlaybookNotes] = useState<PlaybookSavedNoteRecord[]>(
-    []
-  );
-  const [reviewScope, setReviewScope] = useState<ReviewScopeMode>(initialScope);
-  const [reviewType, setReviewType] =
-    useState<ReviewRunCreateRequest["review_type"]>("general");
-  const [reviewAudience, setReviewAudience] =
-    useState<ReviewRunCreateRequest["audience"]>("internal");
-  const [representedParty, setRepresentedParty] = useState(pane_context.represented_party);
-  const [jurisdiction, setJurisdiction] = useState(pane_context.jurisdiction);
-  const [dealContextInput, setDealContextInput] = useState(
-    `${pane_context.project_name}, vendor paper`
-  );
-  const [selectedPlaybookIds, setSelectedPlaybookIds] = useState<string[]>([]);
-  const [insertComments, setInsertComments] = useState(true);
-  const [insertTrackedChanges, setInsertTrackedChanges] = useState(true);
-  const [includeFallbackPosition, setIncludeFallbackPosition] = useState(true);
-  const [severityThreshold, setSeverityThreshold] =
-    useState<ReviewRunCreateRequest["markup_settings"]["severity_threshold"]>("medium");
-  const [reviewProgress, setReviewProgress] = useState(0);
-  const [reviewStep, setReviewStep] = useState("Preparing review request");
-  const [askQuestion, setAskQuestion] = useState(
-    "Does this agreement allow assignment on a change of control?"
-  );
-  const [askAnswerType, setAskAnswerType] = useState<AskRunRecord["answer_type"]>("plain");
-  const [askToggles, setAskToggles] = useState({
-    current_document: true,
-    current_selection: true,
-    uploaded_references: false,
-    org_library: true,
-    legal_sources: false,
-    web_search: false
+
+  const [sessionMode, setSessionMode] = useState<SessionMode>("login");
+  const [authForm, setAuthForm] = useState<AuthRegisterRequest>({
+    email: "",
+    password: "",
+    full_name: ""
   });
-  const [askResult, setAskResult] = useState<AskRunRecord>(ask_run);
+  const [sessionUser, setSessionUser] = useState<PlatformUserRecord | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+
+  const [workspaces, setWorkspaces] = useState<PlatformWorkspaceRecord[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState("");
+  const [isLoadingWorkspaceData, setIsLoadingWorkspaceData] = useState(false);
+  const [playbooks, setPlaybooks] = useState<PlatformPlaybookRecord[]>([]);
+  const [selectedPlaybookId, setSelectedPlaybookId] = useState("");
+  const [providerConfigs, setProviderConfigs] = useState<ProviderConfigRecord[]>([]);
+  const [providerForm, setProviderForm] = useState<ProviderConfigCreateRequest>({
+    workspace_id: "",
+    provider_name: "openai",
+    encrypted_secret: "",
+    model_policy: {
+      review: "gpt-5.4-mini",
+      ask: "gpt-5.4-mini",
+      revise: "gpt-5.4-mini"
+    }
+  });
+  const [providerPolicyInput, setProviderPolicyInput] = useState(default_provider_policy);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isSavingProvider, setIsSavingProvider] = useState(false);
+  const [billingSummary, setBillingSummary] = useState<PlatformUsageSummaryRecord | null>(null);
+  const [trustProfile, setTrustProfile] = useState<PlatformTrustRecord | null>(null);
+
+  const [documentVersions, setDocumentVersions] = useState<PlatformDocumentVersionRecord[]>([]);
+  const [matters, setMatters] = useState<PlatformMatterRecord[]>([]);
+  const [documentSession, setDocumentSession] = useState<StoredDocumentSession | null>(null);
+  const [isSyncingDocument, setIsSyncingDocument] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const [reviewScope, setReviewScope] = useState<SyncScope>(initialScope);
+  const [reviewRun, setReviewRun] = useState<PlatformReviewRunRecord | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [isRunningReview, setIsRunningReview] = useState(false);
+  const [selectedFindingId, setSelectedFindingId] = useState("");
+  const [findingStatuses, setFindingStatuses] = useState<Record<string, LocalFindingStatus>>({});
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<LocalFindingStatus | "all">("all");
+  const [reviewSeverityFilter, setReviewSeverityFilter] = useState<"all" | "high" | "medium" | "low">("all");
+
+  const [askScope, setAskScope] = useState<SyncScope>("selection");
+  const [askQuestion, setAskQuestion] = useState("Can the customer terminate for convenience?");
+  const [askRun, setAskRun] = useState<PlatformAskRunRecord | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const [isRunningAsk, setIsRunningAsk] = useState(false);
-  const [draftInstruction, setDraftInstruction] = useState(
-    "Draft a buyer-side affiliate transfer carve-out for this assignment clause."
+
+  const [reviseInstruction, setReviseInstruction] = useState(
+    "Make this clause more customer-friendly and add notice and cure limits."
   );
-  const [draftResult, setDraftResult] = useState<DraftRunRecord>(draft_run);
-  const [draftError, setDraftError] = useState<string | null>(null);
-  const [isRunningDraft, setIsRunningDraft] = useState(false);
-  const [standardsTemplates, setStandardsTemplates] = useState<StandardsTemplateRecord[]>([]);
-  const [selectedStandardsTemplateId, setSelectedStandardsTemplateId] = useState("");
-  const [standardsRun, setStandardsRun] = useState<StandardsRunRecord | null>(null);
-  const [standardsError, setStandardsError] = useState<string | null>(null);
-  const [isRunningStandards, setIsRunningStandards] = useState(false);
-  const deferredDraftQuery = useDeferredValue(draftQuery);
+  const [reviseRun, setReviseRun] = useState<PlatformReviseRunRecord | null>(null);
+  const [reviseError, setReviseError] = useState<string | null>(null);
+  const [isRunningRevise, setIsRunningRevise] = useState(false);
+  const [selectedClauseBankEntryIds, setSelectedClauseBankEntryIds] = useState<string[]>([]);
+
+  const [savedClauses, setSavedClauses] = useState<PlatformClauseBankEntryRecord[]>([]);
+  const [clauseForm, setClauseForm] = useState<ClauseBankFormState>({
+    contract_type: "saas_agreement",
+    issue_type: "",
+    represented_party: "customer",
+    title: "",
+    text: ""
+  });
+  const [editingClauseId, setEditingClauseId] = useState<string | null>(null);
+  const [savedClauseError, setSavedClauseError] = useState<string | null>(null);
+  const [isSavingClause, setIsSavingClause] = useState(false);
+
+  const documentIdentity = useMemo(() => build_document_identity(selectionState), [selectionState]);
 
   useEffect(() => {
-    async function loadSelection() {
-      setIsRefreshingSelection(true);
-      try {
-        const next_state = await get_word_selection_state();
-        setSelectionState(next_state);
-        setSelectionError(null);
-      } catch (error) {
-        setSelectionError(
-          error instanceof Error ? error.message : "Unable to connect to the Word host."
-        );
-      } finally {
-        setIsRefreshingSelection(false);
-      }
-    }
-
-    void loadSelection();
+    void refreshSelection();
   }, []);
 
   useEffect(() => {
-    void loadPlaybookData();
+    void loadSession();
   }, []);
 
   useEffect(() => {
-    void loadStandardsTemplates();
-  }, []);
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (activeWorkspaceId) {
+      window.localStorage.setItem(workspace_storage_key, activeWorkspaceId);
+    }
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
-    if (selectedPlaybookIds.length === 0 && livePlaybooks.length > 0) {
-      setSelectedPlaybookIds([livePlaybooks[0].name]);
+    if (!documentIdentity) {
+      setDocumentSession(null);
+      return;
     }
-  }, [livePlaybooks, selectedPlaybookIds.length]);
+    setDocumentSession(read_document_session(documentIdentity));
+  }, [documentIdentity]);
 
   useEffect(() => {
-    if (!selectedStandardsTemplateId && standardsTemplates.length > 0) {
-      setSelectedStandardsTemplateId(standardsTemplates[0].id);
+    if (!sessionUser) {
+      setWorkspaces([]);
+      setPlaybooks([]);
+      setProviderConfigs([]);
+      setDocumentVersions([]);
+      setMatters([]);
+      setActiveWorkspaceId("");
+      return;
     }
-  }, [selectedStandardsTemplateId, standardsTemplates]);
+
+    void loadWorkspaceData();
+  }, [sessionUser]);
 
   useEffect(() => {
-    if (initialAction === "refresh_anchors") {
-      void refreshSelection("Selection refreshed from the ribbon.");
+    if (!sessionUser || !activeWorkspaceId) {
+      return;
     }
-  }, [initialAction]);
+
+    void Promise.all([
+      loadPlaybooks(activeWorkspaceId),
+      loadProviderConfigs(activeWorkspaceId),
+      loadDocumentVersions(activeWorkspaceId),
+      loadMatters(activeWorkspaceId),
+      loadClauseBankEntries(activeWorkspaceId),
+      loadBillingSummary(activeWorkspaceId),
+      loadTrustProfile()
+    ]);
+  }, [sessionUser, activeWorkspaceId]);
 
   useEffect(() => {
-    if (initialAction === "export_summary" && reviewRun) {
-      void handleExportSummary();
+    if (!selectedPlaybookId && playbooks.length > 0) {
+      setSelectedPlaybookId(playbooks[0].id);
     }
-  }, [initialAction, reviewRun]);
+  }, [selectedPlaybookId, playbooks]);
 
-  const visibleSuggestions = (reviewRun?.suggestions ?? []).filter((suggestion) => {
-    if (statusFilter !== "all" && suggestion.status !== statusFilter) {
+  useEffect(() => {
+    setProviderForm((current) => ({
+      ...current,
+      workspace_id: activeWorkspaceId
+    }));
+    setSelectedClauseBankEntryIds([]);
+    setEditingClauseId(null);
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    const playbook = playbooks.find((candidate) => candidate.id === selectedPlaybookId) ?? playbooks[0] ?? null;
+    if (!playbook || editingClauseId) {
+      return;
+    }
+    setClauseForm((current) => ({
+      ...current,
+      contract_type: playbook.contract_type,
+      represented_party: playbook.represented_party
+    }));
+  }, [editingClauseId, playbooks, selectedPlaybookId]);
+
+  useEffect(() => {
+    if (!selectedFindingId && reviewRun?.findings?.[0]) {
+      setSelectedFindingId(reviewRun.findings[0].id);
+    }
+  }, [reviewRun, selectedFindingId]);
+
+  const visibleFindings = (reviewRun?.findings ?? []).filter((finding) => {
+    const localStatus = findingStatuses[finding.id] ?? "open";
+    if (reviewStatusFilter !== "all" && localStatus !== reviewStatusFilter) {
       return false;
     }
-
-    if (severityFilter !== "all" && suggestion.severity !== severityFilter) {
+    if (reviewSeverityFilter !== "all" && finding.severity !== reviewSeverityFilter) {
       return false;
     }
-
-    if (typeFilter !== "all" && suggestion.issue_type !== typeFilter) {
-      return false;
-    }
-
     return true;
   });
 
-  const selectedSuggestion =
-    visibleSuggestions.find((suggestion) => suggestion.id === selectedSuggestionId) ??
-    visibleSuggestions[0] ??
+  const selectedFinding =
+    visibleFindings.find((finding) => finding.id === selectedFindingId) ??
+    visibleFindings[0] ??
     null;
-
-  const query = deferredDraftQuery.trim().toLowerCase();
-  const visibleDraftResults = !query
-    ? (draftResult.library_matches.length > 0 ? draftResult.library_matches : draft_results)
-    : (draftResult.library_matches.length > 0 ? draftResult.library_matches : draft_results).filter((item) => {
-        return (
-          item.title.toLowerCase().includes(query) ||
-          item.preview.toLowerCase().includes(query) ||
-          item.subtitle.toLowerCase().includes(query)
-        );
-      });
-
-  const activeStandardsResult: StandardsResultView = standardsRun
-    ? {
-        score: standardsRun.coverage_score,
-        missing_clauses: standardsRun.missing_clauses,
-        weak_clauses: standardsRun.weak_clauses.map(mapStandardsWeakClauseToView)
-      }
-    : {
-        score: standards_result.score,
-        missing_clauses: standards_result.missing_clauses.map((clause) => ({
-          clause_id: clause.clause_id,
-          title: clause.title,
-          severity: clause.severity as SeverityLevel,
-          explanation: clause.explanation,
-          suggested_fix: clause.suggested_fix,
-          fix_mode: clause.fix_mode as StandardsFixMode
-        })),
-        weak_clauses: standards_result.weak_clauses as StandardsClauseView[]
-      };
-
-  useEffect(() => {
-    if (!selectedSuggestionId && visibleSuggestions[0]) {
-      setSelectedSuggestionId(visibleSuggestions[0].id);
-    }
-
-    if (
-      selectedSuggestionId &&
-      visibleSuggestions.length > 0 &&
-      !visibleSuggestions.some((suggestion) => suggestion.id === selectedSuggestionId)
-    ) {
-      setSelectedSuggestionId(visibleSuggestions[0].id);
-    }
-  }, [selectedSuggestionId, visibleSuggestions]);
 
   async function refreshSelection(successMessage?: string | null) {
     setIsRefreshingSelection(true);
     try {
-      const next_state = await get_word_selection_state();
-      setSelectionState(next_state);
+      const nextSelection = await get_word_selection_state();
+      setSelectionState(nextSelection);
       setSelectionError(null);
-      setActionMessage(successMessage ?? next_state.status_message);
+      if (successMessage) {
+        setActionMessage(successMessage);
+      }
     } catch (error) {
       setSelectionError(
-        error instanceof Error ? error.message : "Unable to refresh the Word selection."
+        error instanceof Error ? error.message : "Unable to read the current Word state."
       );
     } finally {
       setIsRefreshingSelection(false);
     }
   }
 
-  async function loadPlaybookData() {
-    setIsRefreshingPlaybooks(true);
+  async function loadSession() {
+    setIsLoadingSession(true);
     try {
-      const [playbookResponse, noteResponse] = await Promise.all([
-        fetch("/api/playbooks", {
-          headers: {
-            Accept: "application/json"
-          },
-          cache: "no-store"
-        }),
-        fetch("/api/playbooks/saved-notes", {
-          headers: {
-            Accept: "application/json"
-          },
-          cache: "no-store"
-        })
-      ]);
-
-      if (!playbookResponse.ok) {
-        throw new Error(await extractErrorMessage(playbookResponse));
-      }
-
-      if (!noteResponse.ok) {
-        throw new Error(await extractErrorMessage(noteResponse));
-      }
-
-      setLivePlaybooks((await playbookResponse.json()) as PlaybookRecord[]);
-      setSavedPlaybookNotes((await noteResponse.json()) as PlaybookSavedNoteRecord[]);
-      setPlaybookError(null);
-    } catch (error) {
-      setPlaybookError(
-        error instanceof Error ? error.message : "Unable to load playbook data."
-      );
-    } finally {
-      setIsRefreshingPlaybooks(false);
-    }
-  }
-
-  async function loadStandardsTemplates() {
-    try {
-      const response = await fetch("/api/standards/templates", {
+      const response = await fetch("/api/auth/me", {
         headers: {
           Accept: "application/json"
         },
         cache: "no-store"
       });
-
-      if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+      if (response.status === 401) {
+        setSessionUser(null);
+        setIsLoadingSession(false);
+        return;
       }
-
-      setStandardsTemplates((await response.json()) as StandardsTemplateRecord[]);
-      setStandardsError(null);
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setSessionUser((await response.json()) as PlatformUserRecord);
+      setAuthError(null);
     } catch (error) {
-      setStandardsError(
-        error instanceof Error ? error.message : "Unable to load standards templates."
-      );
+      setAuthError(error instanceof Error ? error.message : "Unable to load the current session.");
+      setSessionUser(null);
+    } finally {
+      setIsLoadingSession(false);
     }
   }
 
-  function togglePlaybookSelection(playbookId: string) {
-    setSelectedPlaybookIds((current) => toggleValue(current, playbookId));
-  }
-
-  function handleRunPlaybook(playbookName: string) {
-    setSelectedPlaybookIds([playbookName]);
-    setActiveTab("review");
-    setActionMessage(`Prepared Review with ${playbookName} selected.`);
-  }
-
-  async function handleExportPlaybook(playbook: {
-    name: string;
-    version: string;
-    summary: string;
-  }) {
-    await navigator.clipboard.writeText(JSON.stringify(playbook, null, 2));
-    setActionMessage(`Copied ${playbook.name} to the clipboard as JSON.`);
-  }
-
-  async function handleRunReview() {
-    const reviewSourceText =
-      reviewScope === "full_document"
-        ? selectionState?.document_text.trim() ?? ""
-        : selectionState?.selection_text.trim() ?? "";
-
-    if (!reviewSourceText) {
-      setReviewError(
-        reviewScope === "full_document"
-          ? "Unable to read the Word document body for a full-document review."
-          : "Select clause text in Word before starting a live review run."
-      );
-      return;
-    }
-
-    setIsRunningReview(true);
-    setReviewProgress(8);
-    setReviewStep(
-      reviewScope === "full_document"
-        ? "Collecting the current Word document"
-        : "Collecting the current Word selection"
-    );
-    setReviewError(null);
-
+  async function loadWorkspaceData() {
+    setIsLoadingWorkspaceData(true);
     try {
-      await sleep(120);
-      setReviewProgress(34);
-      setReviewStep("Checking selected playbooks");
+      const response = await fetch("/api/platform/workspaces", {
+        headers: {
+          Accept: "application/json"
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      const nextWorkspaces = (await response.json()) as PlatformWorkspaceRecord[];
+      setWorkspaces(nextWorkspaces);
+      const storedWorkspaceId =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(workspace_storage_key)
+          : null;
+      const preferredWorkspaceId =
+        nextWorkspaces.find((workspace) => workspace.id === storedWorkspaceId)?.id ??
+        nextWorkspaces[0]?.id ??
+        "";
+      setActiveWorkspaceId(preferredWorkspaceId);
+      setSettingsError(null);
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error ? error.message : "Unable to load workspaces."
+      );
+    } finally {
+      setIsLoadingWorkspaceData(false);
+    }
+  }
 
-      const payload: ReviewRunCreateRequest = {
-        project_id: "project-maple-acquisition",
-        document_version_id: "word-live-document",
-        scope: {
-          mode: reviewScope,
-          anchor: {
-            type: "word_range",
-            paragraph_id: "selection",
-            char_start: 0,
-            char_end: reviewSourceText.length,
-            quote: reviewSourceText,
-            quote_hash: null,
-            ooxml_path: "/selection",
-            page_number: null
-          }
-        },
-        selection_text: reviewSourceText,
-        selection_ooxml: selectionState?.selection_ooxml ?? null,
-        review_type: reviewType,
-        represented_party: representedParty,
-        jurisdiction,
-        audience: reviewAudience,
-        deal_context: {
-          project_name: pane_context.project_name,
-          document_name: pane_context.document_name,
-          matter_context: dealContextInput
-        },
-        markup_settings: {
-          comments: insertComments,
-          tracked_changes: insertTrackedChanges,
-          fallback_position: includeFallbackPosition,
-          severity_threshold: severityThreshold
-        },
-        playbook_ids: selectedPlaybookIds
-      };
+  async function loadPlaybooks(workspaceId: string) {
+    try {
+      const response = await fetch(
+        `/api/platform/playbooks?workspace_id=${encodeURIComponent(workspaceId)}`,
+        {
+          headers: {
+            Accept: "application/json"
+          },
+          cache: "no-store"
+        }
+      );
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setPlaybooks((await response.json()) as PlatformPlaybookRecord[]);
+      setReviewError(null);
+    } catch (error) {
+      setReviewError(
+        error instanceof Error ? error.message : "Unable to load playbooks."
+      );
+    }
+  }
 
-      const response = await fetch("/api/review-runs", {
+  async function loadProviderConfigs(workspaceId: string) {
+    try {
+      const response = await fetch(
+        `/api/provider-configs?workspace_id=${encodeURIComponent(workspaceId)}`,
+        {
+          headers: {
+            Accept: "application/json"
+          },
+          cache: "no-store"
+        }
+      );
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setProviderConfigs((await response.json()) as ProviderConfigRecord[]);
+      setSettingsError(null);
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error ? error.message : "Unable to load provider settings."
+      );
+    }
+  }
+
+  async function loadDocumentVersions(workspaceId: string) {
+    try {
+      const response = await fetch(
+        `/api/platform/workspaces/${workspaceId}/document-versions`,
+        {
+          headers: {
+            Accept: "application/json"
+          },
+          cache: "no-store"
+        }
+      );
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setDocumentVersions((await response.json()) as PlatformDocumentVersionRecord[]);
+    } catch (error) {
+      setSyncError(
+        error instanceof Error ? error.message : "Unable to load document versions."
+      );
+    }
+  }
+
+  async function loadMatters(workspaceId: string) {
+    try {
+      const response = await fetch(`/api/platform/workspaces/${workspaceId}/matters`, {
+        headers: {
+          Accept: "application/json"
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setMatters((await response.json()) as PlatformMatterRecord[]);
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Unable to load matters.");
+    }
+  }
+
+  async function loadClauseBankEntries(workspaceId: string, searchQuery?: string) {
+    try {
+      const params = new URLSearchParams({ workspace_id: workspaceId });
+      if (searchQuery?.trim()) {
+        params.set("search_query", searchQuery.trim());
+      }
+      const response = await fetch(`/api/platform/clause-bank?${params.toString()}`, {
+        headers: {
+          Accept: "application/json"
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setSavedClauses((await response.json()) as PlatformClauseBankEntryRecord[]);
+      setSavedClauseError(null);
+    } catch (error) {
+      setSavedClauseError(
+        error instanceof Error ? error.message : "Unable to load saved clauses."
+      );
+    }
+  }
+
+  async function loadBillingSummary(workspaceId: string) {
+    try {
+      const response = await fetch(`/api/platform/workspaces/${workspaceId}/billing`, {
+        headers: {
+          Accept: "application/json"
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setBillingSummary((await response.json()) as PlatformUsageSummaryRecord);
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Unable to load billing summary.");
+    }
+  }
+
+  async function loadTrustProfile() {
+    try {
+      const response = await fetch("/api/platform/trust", {
+        headers: {
+          Accept: "application/json"
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setTrustProfile((await response.json()) as PlatformTrustRecord);
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Unable to load trust details.");
+    }
+  }
+
+  async function recordPreferenceSignal(payload: PlatformPreferenceSignalCreateRequest) {
+    const response = await fetch("/api/platform/preference-signals", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(await extract_error_message(response));
+    }
+  }
+
+  async function recordApplyEvent(payload: PlatformApplyEventCreateRequest) {
+    const response = await fetch("/api/platform/apply-events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(await extract_error_message(response));
+    }
+  }
+
+  async function estimateRunCost(
+    runType: "review" | "ask" | "revise",
+    payload: {
+      document_version_id?: string | null;
+      selection_text?: string | null;
+      question?: string | null;
+      instruction?: string | null;
+      playbook_id?: string | null;
+    }
+  ) {
+    if (!activeWorkspaceId) {
+      return null;
+    }
+    const response = await fetch("/api/platform/spend-estimate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        workspace_id: activeWorkspaceId,
+        run_type: runType,
+        ...payload
+      })
+    });
+    if (!response.ok) {
+      throw new Error(await extract_error_message(response));
+    }
+    return (await response.json()) as PlatformSpendEstimateRecord;
+  }
+
+  async function handleAuthSubmit() {
+    setIsSubmittingAuth(true);
+    try {
+      const path = sessionMode === "register" ? "/api/auth/register" : "/api/auth/login";
+      const payload =
+        sessionMode === "register"
+          ? authForm
+          : ({
+              email: authForm.email,
+              password: authForm.password
+            } satisfies AuthLoginRequest);
+      const response = await fetch(path, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -435,629 +573,825 @@ export function WordTaskPane({
         },
         body: JSON.stringify(payload)
       });
-
       if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+        throw new Error(await extract_error_message(response));
+      }
+      const auth = (await response.json()) as AuthTokenResponse;
+      setSessionUser(auth.user);
+      setAuthError(null);
+      setActionMessage(`Signed in as ${auth.user.email}.`);
+      setAuthForm({
+        email: authForm.email,
+        password: "",
+        full_name: authForm.full_name ?? ""
+      });
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Unable to complete authentication.");
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  }
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", {
+      method: "POST"
+    });
+    setSessionUser(null);
+    setReviewRun(null);
+    setAskRun(null);
+    setReviseRun(null);
+    setActionMessage("Signed out of the Word add-in session.");
+  }
+
+  async function handleSaveProviderConfig() {
+    if (!activeWorkspaceId) {
+      setSettingsError("Choose a workspace before saving provider settings.");
+      return;
+    }
+
+    setIsSavingProvider(true);
+    try {
+      const modelPolicy = JSON.parse(providerPolicyInput) as Record<string, object>;
+      const payload: ProviderConfigCreateRequest = {
+        workspace_id: activeWorkspaceId,
+        provider_name: providerForm.provider_name.trim(),
+        encrypted_secret: providerForm.encrypted_secret?.trim() || null,
+        model_policy: modelPolicy
+      };
+      const response = await fetch("/api/provider-configs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      await loadProviderConfigs(activeWorkspaceId);
+      await loadBillingSummary(activeWorkspaceId);
+      setActionMessage(`Saved ${payload.provider_name} settings for the active workspace.`);
+      setSettingsError(null);
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error ? error.message : "Unable to save provider settings."
+      );
+    } finally {
+      setIsSavingProvider(false);
+    }
+  }
+
+  async function handleDeleteProviderConfig(configId: string) {
+    try {
+      const response = await fetch(`/api/provider-configs/${configId}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      if (activeWorkspaceId) {
+        await loadProviderConfigs(activeWorkspaceId);
+        await loadBillingSummary(activeWorkspaceId);
+      }
+      setActionMessage("Removed the provider configuration.");
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error ? error.message : "Unable to delete the provider configuration."
+      );
+    }
+  }
+
+  async function handleDeleteDocument(documentId: string) {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/platform/documents/${documentId}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      await Promise.all([loadDocumentVersions(activeWorkspaceId), loadBillingSummary(activeWorkspaceId)]);
+      setActionMessage("Deleted the synced document and its stored artifacts.");
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Unable to delete the document.");
+    }
+  }
+
+  async function handleDeleteMatter(matterId: string) {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/platform/matters/${matterId}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      await Promise.all([
+        loadMatters(activeWorkspaceId),
+        loadDocumentVersions(activeWorkspaceId),
+        loadBillingSummary(activeWorkspaceId)
+      ]);
+      setActionMessage("Deleted the matter and all linked synced documents.");
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Unable to delete the matter.");
+    }
+  }
+
+  async function syncCurrentSelection(scope: SyncScope, force = false) {
+    if (!selectionState) {
+      throw new Error("Word selection state is not available yet.");
+    }
+    if (!sessionUser || !activeWorkspaceId) {
+      throw new Error("Sign in and choose a workspace before syncing Word content.");
+    }
+
+    const existingSession = documentSession ?? {
+      identity: documentIdentity
+    };
+
+    if (scope === "full_document") {
+      const documentText = selectionState.document_text.trim();
+      if (!documentText) {
+        throw new Error("Word did not return any document text to sync.");
       }
 
-      setReviewProgress(72);
-      setReviewStep("Assembling suggestion cards");
-      const nextRun = (await response.json()) as ReviewRunRecord;
-      await sleep(120);
-      setReviewProgress(100);
-      setReviewStep("Review ready");
-      syncReviewRunState(nextRun);
+      const documentHash = await hash_text(documentText);
+      if (
+        !force &&
+        existingSession.full_document_hash === documentHash &&
+        existingSession.full_document_version
+      ) {
+        setActionMessage("Using the existing synced full-document snapshot.");
+        return existingSession.full_document_version;
+      }
+
+      setIsSyncingDocument(true);
+      try {
+        const form = new FormData();
+        form.set("workspace_id", activeWorkspaceId);
+        form.set("source_kind", "word_document");
+        form.append(
+          "files",
+          new Blob([documentText], { type: "text/plain" }),
+          normalize_document_filename(selectionState.document_name)
+        );
+
+        const response = await fetch("/api/platform/documents/upload", {
+          method: "POST",
+          body: form
+        });
+        if (!response.ok) {
+          throw new Error(await extract_error_message(response));
+        }
+        const ingest = ((await response.json()) as PlatformDocumentIngestRecord[])[0];
+        const nextSession: StoredDocumentSession = {
+          ...existingSession,
+          full_document_hash: documentHash,
+          full_document_version: ingest.document_version,
+          last_sync_scope: "full_document",
+          last_synced_at: new Date().toISOString()
+        };
+        persist_document_session(documentIdentity, nextSession);
+        setDocumentSession(nextSession);
+        setActionMessage(`Synced the current Word document as ${ingest.document_version.id}.`);
+        await loadDocumentVersions(activeWorkspaceId);
+        return ingest.document_version;
+      } finally {
+        setIsSyncingDocument(false);
+      }
+    }
+
+    const selectionText = selectionState.selection_text.trim();
+    if (!selectionText) {
+      throw new Error("Select clause text in Word before syncing the current selection.");
+    }
+    const selectionHash = await hash_text(selectionText);
+    if (
+      !force &&
+      existingSession.selection_hash === selectionHash &&
+      existingSession.selection_version
+    ) {
+      setActionMessage("Using the existing synced selection snapshot.");
+      return existingSession.selection_version;
+    }
+
+    setIsSyncingDocument(true);
+    try {
+      const response = await fetch("/api/platform/documents/selection", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          document_name: build_selection_document_name(selectionState.document_name),
+          selection_text: selectionText
+        })
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      const ingest = (await response.json()) as PlatformDocumentIngestRecord;
+      const nextSession: StoredDocumentSession = {
+        ...existingSession,
+        selection_hash: selectionHash,
+        selection_version: ingest.document_version,
+        last_sync_scope: "selection",
+        last_synced_at: new Date().toISOString()
+      };
+      persist_document_session(documentIdentity, nextSession);
+      setDocumentSession(nextSession);
+      setActionMessage(`Synced the current Word selection as ${ingest.document_version.id}.`);
+      await loadDocumentVersions(activeWorkspaceId);
+      return ingest.document_version;
+    } finally {
+      setIsSyncingDocument(false);
+    }
+  }
+
+  async function ensureReviewDocumentVersion() {
+    return syncCurrentSelection(reviewScope);
+  }
+
+  async function ensureContextDocumentVersion(scope: SyncScope) {
+    if (scope === "full_document") {
+      return syncCurrentSelection("full_document");
+    }
+    try {
+      return await syncCurrentSelection("full_document");
+    } catch {
+      return syncCurrentSelection("selection");
+    }
+  }
+
+  async function runReview() {
+    if (!sessionUser || !activeWorkspaceId) {
+      setReviewError("Sign in and choose a workspace before running Review.");
+      return;
+    }
+    if (!selectedPlaybookId) {
+      setReviewError("Choose a playbook before running Review.");
+      return;
+    }
+
+    setIsRunningReview(true);
+    setReviewError(null);
+    try {
+      const documentVersion = await ensureReviewDocumentVersion();
+      const estimate = await estimateRunCost("review", {
+        document_version_id: documentVersion.id,
+        playbook_id: selectedPlaybookId
+      });
+      if (estimate) {
+        setActionMessage(estimate.message);
+      }
+      const response = await fetch("/api/platform/review-runs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          document_version_id: documentVersion.id,
+          playbook_id: selectedPlaybookId
+        })
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      const initialRun = (await response.json()) as PlatformReviewRunRecord;
+      const completedRun = await poll_platform_run<PlatformReviewRunRecord>(
+        `/api/platform/review-runs/${initialRun.id}`,
+        initialRun.status
+      );
+      setReviewRun(completedRun);
+      setSelectedFindingId(completedRun.findings[0]?.id ?? "");
+      setFindingStatuses({});
       setActionMessage(
-        nextRun.suggestions.length > 0
-          ? `Live review finished with ${nextRun.suggestions.length} suggestion(s).`
-          : "Live review finished with no suggestions for the current selection."
+        completedRun.findings.length > 0
+          ? `Review completed with ${completedRun.findings.length} finding(s).`
+          : "Review completed with no findings for the current scope."
       );
+      await loadBillingSummary(activeWorkspaceId);
     } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to run the live review."
-      );
+      setReviewError(error instanceof Error ? error.message : "Unable to run Review.");
     } finally {
       setIsRunningReview(false);
     }
   }
 
-  async function handleExportSummary() {
-    if (!reviewRun) {
-      setReviewError("Run a review before exporting a summary to the project.");
+  async function runAsk() {
+    if (!sessionUser || !activeWorkspaceId) {
+      setAskError("Sign in and choose a workspace before running Ask.");
       return;
     }
-
-    setIsExportingSummary(true);
-    try {
-      const response = await fetch(
-        `/api/review-runs/${reviewRun.id}/export-summary`,
-        {
-          method: "POST",
-          headers: {
-            Accept: "application/json"
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
-      }
-
-      const exportRecord = (await response.json()) as {
-        id: string;
-        exported_at: string;
-        summary_markdown: string;
-      };
-      setActionMessage(
-        `Exported review summary to the project at ${exportRecord.exported_at}.`
-      );
-    } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to export the review summary."
-      );
-    } finally {
-      setIsExportingSummary(false);
-    }
-  }
-
-  async function handleAsk() {
-    const normalizedQuestion = askQuestion.trim();
-    const askSourceText =
-      askToggles.current_selection
-        ? selectionState?.selection_text.trim() ?? ""
-        : askToggles.current_document
-          ? selectionState?.document_text.trim() ?? ""
-          : "";
-
-    if (!normalizedQuestion) {
+    if (!askQuestion.trim()) {
       setAskError("Enter a question before running Ask.");
       return;
     }
-
-    if (!askSourceText) {
-      setAskError("Ask currently needs the active Word selection or document text.");
+    if (askScope === "selection" && !selectionState?.selection_text.trim()) {
+      setAskError("Select clause text in Word before using selection-scoped Ask.");
       return;
     }
 
     setIsRunningAsk(true);
     setAskError(null);
     try {
-      const payload: AskRunCreateRequest = {
-        project_id: "project-maple-acquisition",
-        document_version_id: "word-live-document",
-        selection_anchor_id: null,
-        selection_text: askSourceText,
-        selection_anchor: {
-          type: "word_range",
-          paragraph_id: "selection",
-          char_start: 0,
-          char_end: askSourceText.length,
-          quote: askSourceText,
-          quote_hash: null,
-          ooxml_path: "/selection",
-          page_number: null
-        },
-        question: normalizedQuestion,
-        answer_type: askAnswerType,
-        source_toggles: askToggles
-      };
-
-      const response = await fetch("/api/ask", {
+      const documentVersion = await ensureContextDocumentVersion(askScope);
+      const estimate = await estimateRunCost("ask", {
+        document_version_id: documentVersion.id,
+        selection_text: askScope === "selection" ? selectionState?.selection_text.trim() : null,
+        question: askQuestion.trim()
+      });
+      if (estimate) {
+        setActionMessage(estimate.message);
+      }
+      const response = await fetch("/api/platform/ask-runs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          document_version_id: documentVersion.id,
+          question: askQuestion.trim(),
+          selection_text: askScope === "selection" ? selectionState?.selection_text.trim() : null
+        })
       });
-
       if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+        throw new Error(await extract_error_message(response));
       }
-
-      let nextAskRun = (await response.json()) as AskRunRecord;
-      setAskResult(nextAskRun);
-
-      for (let attempt = 0; attempt < 6; attempt += 1) {
-        if (nextAskRun.status !== "queued" && nextAskRun.status !== "running") {
-          break;
-        }
-
-        await sleep(500);
-        const pollResponse = await fetch(`/api/ask/${nextAskRun.id}`, {
-          headers: {
-            Accept: "application/json"
-          },
-          cache: "no-store"
-        });
-
-        if (!pollResponse.ok) {
-          throw new Error(await extractErrorMessage(pollResponse));
-        }
-
-        nextAskRun = (await pollResponse.json()) as AskRunRecord;
-        setAskResult(nextAskRun);
-      }
-
-      if (nextAskRun.status === "succeeded") {
-        setActionMessage("Ask response completed with citations from the current source context.");
-      } else {
-        setActionMessage("Ask run queued. Start the local worker to complete it.");
-      }
-    } catch (error) {
-      setAskError(
-        error instanceof Error ? error.message : "Unable to run Ask."
+      const initialRun = (await response.json()) as PlatformAskRunRecord;
+      const completedRun = await poll_platform_run<PlatformAskRunRecord>(
+        `/api/platform/ask-runs/${initialRun.id}`,
+        initialRun.status
       );
+      setAskRun(completedRun);
+      setActionMessage(
+        completedRun.answer?.supported
+          ? "Ask completed with cited support from the current document."
+          : "Ask could not support a factual answer from the current document."
+      );
+      await loadBillingSummary(activeWorkspaceId);
+    } catch (error) {
+      setAskError(error instanceof Error ? error.message : "Unable to run Ask.");
     } finally {
       setIsRunningAsk(false);
     }
   }
 
-  function toggleAskSource(key: keyof typeof askToggles) {
-    setAskToggles((current) => ({
-      ...current,
-      [key]: !current[key]
-    }));
-  }
-
-  async function handleDraftRun() {
-    const draftSourceText = selectionState?.selection_text.trim() ?? "";
-    const normalizedInstruction = draftInstruction.trim();
-    const normalizedQuery = draftQuery.trim();
-
-    if (draftMode === "instruction" && !normalizedInstruction) {
-      setDraftError("Enter revision instructions before running Revise.");
+  async function runRevise() {
+    if (!sessionUser || !activeWorkspaceId) {
+      setReviseError("Sign in and choose a workspace before running Revise.");
+      return;
+    }
+    if (!selectionState?.selection_text.trim()) {
+      setReviseError("Select clause text in Word before running Revise.");
+      return;
+    }
+    if (!reviseInstruction.trim()) {
+      setReviseError("Enter revision instructions before running Revise.");
       return;
     }
 
-    if (draftMode !== "instruction" && !normalizedQuery && !draftSourceText) {
-      setDraftError("Revise currently needs a saved-clause query or current clause text.");
-      return;
-    }
-
-    setIsRunningDraft(true);
-    setDraftError(null);
+    setIsRunningRevise(true);
+    setReviseError(null);
     try {
-      const payload: DraftRunCreateRequest = {
-        project_id: "project-maple-acquisition",
-        document_version_id: "word-live-document",
-        selection_text: draftSourceText || null,
-        selection_anchor: draftSourceText
-          ? {
-              type: "word_range",
-              paragraph_id: "selection",
-              char_start: 0,
-              char_end: draftSourceText.length,
-              quote: draftSourceText,
-              quote_hash: null,
-              ooxml_path: "/selection",
-              page_number: null
-            }
-          : null,
-        mode: draftMode,
-        query: normalizedQuery || null,
-        instruction: normalizedInstruction || null
-      };
-
-      const response = await fetch("/api/draft", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify(payload)
+      const documentVersion = await ensureContextDocumentVersion("selection");
+      const estimate = await estimateRunCost("revise", {
+        document_version_id: documentVersion.id,
+        selection_text: selectionState.selection_text.trim(),
+        instruction: reviseInstruction.trim(),
+        playbook_id: selectedPlaybookId || null
       });
-
-      if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+      if (estimate) {
+        setActionMessage(estimate.message);
       }
-
-      let nextDraftRun = (await response.json()) as DraftRunRecord;
-      setDraftResult(nextDraftRun);
-
-      for (let attempt = 0; attempt < 6; attempt += 1) {
-        if (nextDraftRun.status !== "queued" && nextDraftRun.status !== "running") {
-          break;
-        }
-
-        await sleep(500);
-        const pollResponse = await fetch(`/api/draft/${nextDraftRun.id}`, {
-          headers: {
-            Accept: "application/json"
-          },
-          cache: "no-store"
-        });
-
-        if (!pollResponse.ok) {
-          throw new Error(await extractErrorMessage(pollResponse));
-        }
-
-        nextDraftRun = (await pollResponse.json()) as DraftRunRecord;
-        setDraftResult(nextDraftRun);
-      }
-
-      if (nextDraftRun.status === "succeeded") {
-        setActionMessage("Revise completed with suggested language and citations.");
-      } else {
-        setActionMessage("Revise run queued. Start the local worker to complete it.");
-      }
-    } catch (error) {
-      setDraftError(
-        error instanceof Error ? error.message : "Unable to run Revise."
-      );
-    } finally {
-      setIsRunningDraft(false);
-    }
-  }
-
-  async function handleStandardsRun() {
-    const standardsSourceText = selectionState?.selection_text.trim() ?? "";
-
-    if (!selectedStandardsTemplateId) {
-      setStandardsError("Choose a standards template before running Compare to House Standard.");
-      return;
-    }
-
-    if (!standardsSourceText) {
-      setStandardsError("Select clause text in Word before running Standards.");
-      return;
-    }
-
-    setIsRunningStandards(true);
-    setStandardsError(null);
-    try {
-      const payload: StandardsRunCreateRequest = {
-        project_id: reviewRun?.project_id ?? "project-maple-acquisition",
-        document_version_id: reviewRun?.document_version_id ?? "word-live-document",
-        standards_template_id: selectedStandardsTemplateId,
-        selection_text: standardsSourceText,
-        selection_anchor: {
-          type: "word_range",
-          paragraph_id: "selection",
-          char_start: 0,
-          char_end: standardsSourceText.length,
-          quote: standardsSourceText,
-          quote_hash: null,
-          ooxml_path: "/selection",
-          page_number: null
-        }
-      };
-
-      const response = await fetch("/api/standards/runs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
-      }
-
-      const nextStandardsRun = (await response.json()) as StandardsRunRecord;
-      setStandardsRun(nextStandardsRun);
-      setActionMessage("Standards comparison completed against the selected house standard.");
-    } catch (error) {
-      setStandardsError(
-        error instanceof Error ? error.message : "Unable to run Standards."
-      );
-    } finally {
-      setIsRunningStandards(false);
-    }
-  }
-
-  async function handleLocateStandardsClause(
-    clause: StandardsClauseView | StandardsMissingClause
-  ) {
-    const targetQuote =
-      "matched_excerpt" in clause ? clause.matched_excerpt?.trim() : undefined;
-    if (!targetQuote) {
-      setActionMessage(
-        "This finding does not have a matched excerpt yet. Run Standards on the specific clause you want to remediate."
-      );
-      return;
-    }
-
-    setIsLocatingAnchor(true);
-    try {
-      const result = await locate_quote_in_document(targetQuote);
-      if (result.ok) {
-        await refreshSelection(result.message);
-        return;
-      }
-
-      setActionMessage(result.message);
-    } catch (error) {
-      setStandardsError(
-        error instanceof Error ? error.message : "Unable to locate the standards clause in Word."
-      );
-    } finally {
-      setIsLocatingAnchor(false);
-    }
-  }
-
-  async function handleApplyStandardsFix(
-    clause: StandardsClauseView | StandardsMissingClause
-  ) {
-    setIsApplyingAction(true);
-    try {
-      const result =
-        clause.fix_mode === "insert_after_selection"
-          ? await insert_text_after_selection(clause.suggested_fix)
-          : await apply_redline_to_selection(clause.suggested_fix);
-
-      setActionMessage(result.message);
-      if (result.ok) {
-        await refreshSelection(result.message);
-      }
-    } catch (error) {
-      setStandardsError(
-        error instanceof Error ? error.message : "Unable to apply the standards fix."
-      );
-    } finally {
-      setIsApplyingAction(false);
-    }
-  }
-
-  async function handleInsertDraftText(text: string) {
-    const result = await apply_redline_to_selection(text);
-    setActionMessage(result.message);
-  }
-
-  async function handleCopyDraftText(text: string) {
-    await navigator.clipboard.writeText(text);
-    setActionMessage("Suggested language copied to the clipboard.");
-  }
-
-  function syncReviewRunState(nextRun: ReviewRunRecord) {
-    setReviewRun(nextRun);
-    setSelectedSuggestionId(nextRun.suggestions[0]?.id ?? "");
-    setReviewError(null);
-  }
-
-  async function handleApplyComment(suggestion: ReviewSuggestionRecord) {
-    setIsApplyingAction(true);
-    try {
-      const result = await apply_comment_to_selection(
-        suggestion.proposed_comment ?? "Skua note"
-      );
-      if (!result.ok) {
-        setActionMessage(result.message);
-        return;
-      }
-
-      const response = await fetch(`/api/review-suggestions/${suggestion.id}/apply`, {
+      const response = await fetch("/api/platform/revise-runs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json"
         },
         body: JSON.stringify({
-          mode: "comment",
-          reviewer_note: suggestion.proposed_comment ?? null,
-          client_application_result: result
+          workspace_id: activeWorkspaceId,
+          document_version_id: documentVersion.id,
+          selected_text: selectionState.selection_text.trim(),
+          instruction: reviseInstruction.trim(),
+          playbook_id: selectedPlaybookId || null,
+          clause_bank_entry_ids: selectedClauseBankEntryIds
         })
       });
-
       if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+        throw new Error(await extract_error_message(response));
       }
-
-      const nextRun = (await response.json()) as ReviewRunRecord;
-      syncReviewRunState(nextRun);
-      await refreshSelection(result.message);
-    } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to persist the comment application."
+      const initialRun = (await response.json()) as PlatformReviseRunRecord;
+      const completedRun = await poll_platform_run<PlatformReviseRunRecord>(
+        `/api/platform/revise-runs/${initialRun.id}`,
+        initialRun.status
       );
+      setReviseRun(completedRun);
+      setActionMessage("Revise returned suggested language grounded in the current clause context.");
+      await loadBillingSummary(activeWorkspaceId);
+    } catch (error) {
+      setReviseError(error instanceof Error ? error.message : "Unable to run Revise.");
     } finally {
-      setIsApplyingAction(false);
+      setIsRunningRevise(false);
     }
   }
 
-  async function handleApplyRedline(suggestion: ReviewSuggestionRecord) {
-    if (!suggestion.proposed_redline) {
-      setActionMessage("This suggestion does not include a redline yet.");
-      return;
-    }
-
-    setIsApplyingAction(true);
+  async function handleJumpToCitation(citation: PlatformReviewCitationRecord) {
     try {
-      const result = await apply_redline_to_selection(
-        suggestion.proposed_redline.replacement_text
-      );
-      if (!result.ok) {
-        setActionMessage(result.message);
-        return;
-      }
+      const anchor = citation.anchor ?? {};
+      let targetQuote =
+        (typeof anchor.quote === "string" ? anchor.quote : null) ?? citation.quote;
+      let warning: string | null = null;
+      const candidate_segments = split_candidate_segments(selectionState?.document_text ?? "");
 
-      const response = await fetch(`/api/review-suggestions/${suggestion.id}/apply`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({
-          mode: "redline",
-          reviewer_note: suggestion.proposed_redline.replacement_text,
-          client_application_result: result
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
-      }
-
-      const nextRun = (await response.json()) as ReviewRunRecord;
-      syncReviewRunState(nextRun);
-      await refreshSelection(result.message);
-    } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to persist the redline application."
-      );
-    } finally {
-      setIsApplyingAction(false);
-    }
-  }
-
-  async function handleLocateAnchor(suggestion: ReviewSuggestionRecord) {
-    const targetQuote = resolveAnchorTargetQuote(suggestion);
-    if (!targetQuote) {
-      setActionMessage("No anchor text is available yet for this suggestion.");
-      return;
-    }
-
-    setIsLocatingAnchor(true);
-    try {
-      const result = await locate_quote_in_document(targetQuote);
-      if (result.ok) {
-        await refreshSelection(result.message);
-        return;
-      }
-
-      setActionMessage(result.message);
-    } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to locate the suggestion anchor."
-      );
-    } finally {
-      setIsLocatingAnchor(false);
-    }
-  }
-
-  async function handleSaveToPlaybook(
-    suggestion: ReviewSuggestionRecord,
-    options: PlaybookSaveOptions
-  ) {
-    setIsApplyingAction(true);
-    try {
-      const payload: ReviewSuggestionSaveToPlaybookRequest = {
-        playbook_id: options.playbook_id ?? undefined,
-        playbook_check_id: options.playbook_check_id ?? undefined,
-        note:
-          suggestion.fallback_position_text ??
-          suggestion.proposed_comment ??
-          suggestion.explanation
-      };
-      const response = await fetch(
-        `/api/review-suggestions/${suggestion.id}/save-to-playbook`,
-        {
+      if (candidate_segments.length > 0) {
+        const response = await fetch("/api/platform/anchors/relocate", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json"
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            anchor,
+            candidate_segments
+          })
+        });
+        if (response.ok) {
+          const relocation = (await response.json()) as {
+            strategy: string;
+            matched_text: string;
+          };
+          if (relocation.matched_text) {
+            targetQuote = relocation.matched_text;
+          }
+          if (relocation.strategy === "fuzzy_neighborhood_match") {
+            warning =
+              "Best match warning: the exact anchor was not found, so Skua selected the closest clause match.";
+          }
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
       }
 
-      const nextRun = (await response.json()) as ReviewRunRecord;
-      syncReviewRunState(nextRun);
-      await loadPlaybookData();
-      setActionMessage("Saved the suggestion note to clause memory.");
+      const locate = await locate_quote_in_document(targetQuote);
+      if (locate.ok) {
+        await refreshSelection(warning ? `${warning} ${locate.message}` : locate.message);
+      } else {
+        setActionMessage(warning ? `${warning} ${locate.message}` : locate.message);
+      }
     } catch (error) {
       setReviewError(
-        error instanceof Error ? error.message : "Unable to save the suggestion to a playbook."
+        error instanceof Error ? error.message : "Unable to relocate this citation in Word."
       );
-    } finally {
-      setIsApplyingAction(false);
     }
   }
 
-  const visiblePlaybooks =
-    livePlaybooks.length > 0 ? livePlaybooks.map(mapLivePlaybookToCard) : playbooks;
+  async function applyFindingAction(
+    finding: PlatformReviewFindingRecord,
+    mode: "comment" | "redline" | "insert_fallback"
+  ) {
+    if (!activeWorkspaceId) {
+      setReviewError("Choose a workspace before applying review output.");
+      return;
+    }
+    const firstCitation = finding.citations[0];
+    if (firstCitation) {
+      await handleJumpToCitation(firstCitation);
+    }
 
-  async function handleDismissSuggestion(suggestion: ReviewSuggestionRecord) {
-    setIsApplyingAction(true);
+    const result =
+      mode === "comment"
+        ? await apply_comment_to_selection(finding.comment_text ?? finding.explanation)
+        : mode === "redline"
+          ? await apply_redline_to_selection(strip_suggested_prefix(finding.redline_text ?? ""))
+          : await insert_text_after_selection(strip_suggested_prefix(finding.redline_text ?? ""));
+
+    setActionMessage(result.message);
+    if (!result.ok) {
+      return;
+    }
+
+    setFindingStatuses((current) => ({
+      ...current,
+      [finding.id]:
+        mode === "comment" ? "applied_comment" : "applied_redline"
+    }));
+    await recordPreferenceSignal({
+      workspace_id: activeWorkspaceId,
+      entity_type: "finding",
+      entity_id: finding.id,
+      signal_type: "accepted_suggestion",
+      signal_value: finding.issue_type,
+      metadata: {
+        issue_type: finding.issue_type,
+        contract_type: selectedPlaybook?.contract_type ?? null,
+        represented_party: selectedPlaybook?.represented_party ?? null,
+        action_mode: mode
+      }
+    });
+    await recordApplyEvent({
+      workspace_id: activeWorkspaceId,
+      event_type: mode === "comment" ? "comment_applied" : mode === "redline" ? "redline_applied" : "fallback_inserted",
+      review_run_id: finding.review_run_id,
+      finding_id: finding.id,
+      target_anchor: firstCitation?.anchor ?? {}
+    });
+    await refreshSelection(result.message);
+  }
+
+  async function applySavedClause(
+    clause: Pick<PlatformClauseBankEntryRecord, "id" | "issue_type" | "contract_type" | "represented_party" | "text">,
+    mode: "replace" | "insert_after"
+  ) {
+    const result =
+      mode === "replace"
+        ? await apply_redline_to_selection(strip_suggested_prefix(clause.text))
+        : await insert_text_after_selection(strip_suggested_prefix(clause.text));
+    setActionMessage(result.message);
+    if (result.ok) {
+      if (activeWorkspaceId) {
+        await recordPreferenceSignal({
+          workspace_id: activeWorkspaceId,
+          entity_type: "clause_bank_entry",
+          entity_id: clause.id,
+          signal_type: "used_clause",
+          signal_value: clause.issue_type ?? null,
+          metadata: {
+            issue_type: clause.issue_type,
+            contract_type: clause.contract_type,
+            represented_party: clause.represented_party,
+            action_mode: mode
+          }
+        });
+        await recordApplyEvent({
+          workspace_id: activeWorkspaceId,
+          event_type: mode === "replace" ? "clause_replaced" : "clause_inserted",
+          target_anchor: {}
+        });
+      }
+      await refreshSelection(result.message);
+    }
+  }
+
+  async function applyReviseSuggestion(mode: "replace" | "insert_after") {
+    if (!reviseRun?.suggested_text) {
+      return;
+    }
+    const result =
+      mode === "replace"
+        ? await apply_redline_to_selection(strip_suggested_prefix(reviseRun.suggested_text))
+        : await insert_text_after_selection(strip_suggested_prefix(reviseRun.suggested_text));
+    setActionMessage(result.message);
+    if (result.ok) {
+      if (activeWorkspaceId) {
+        await recordPreferenceSignal({
+          workspace_id: activeWorkspaceId,
+          entity_type: "revise_run",
+          entity_id: reviseRun.id,
+          signal_type: "accepted_suggestion",
+          signal_value: clauseForm.issue_type || null,
+          metadata: {
+            contract_type: selectedPlaybook?.contract_type ?? clauseForm.contract_type,
+            represented_party: selectedPlaybook?.represented_party ?? clauseForm.represented_party,
+            issue_type: clauseForm.issue_type || null,
+            action_mode: mode
+          }
+        });
+        await recordApplyEvent({
+          workspace_id: activeWorkspaceId,
+          event_type: mode === "replace" ? "revise_replaced" : "revise_inserted",
+          revise_run_id: reviseRun.id,
+          target_anchor: {}
+        });
+      }
+      await refreshSelection(result.message);
+    }
+  }
+
+  async function handleUndoLastEdit() {
+    const result = await undo_last_word_action();
+    setActionMessage(result.message);
+    if (result.ok) {
+      await refreshSelection(result.message);
+    }
+  }
+
+  async function handleDismissFinding(finding: PlatformReviewFindingRecord) {
+    setFindingStatuses((current) => ({
+      ...current,
+      [finding.id]: "dismissed"
+    }));
+    if (activeWorkspaceId) {
+      await recordPreferenceSignal({
+        workspace_id: activeWorkspaceId,
+        entity_type: "finding",
+        entity_id: finding.id,
+        signal_type: "dismissed_finding",
+        signal_value: finding.issue_type,
+        metadata: {
+          issue_type: finding.issue_type,
+          contract_type: selectedPlaybook?.contract_type ?? null,
+          represented_party: selectedPlaybook?.represented_party ?? null
+        }
+      });
+    }
+    setActionMessage("Dismissed this finding for the active workspace.");
+  }
+
+  async function saveClause(entry: {
+    title: string;
+    text: string;
+    issue_type?: string | null;
+    contract_type?: string | null;
+    represented_party?: string | null;
+    source: string;
+  }) {
+    if (!activeWorkspaceId) {
+      setSavedClauseError("Choose a workspace before saving clause language.");
+      return;
+    }
+    setIsSavingClause(true);
     try {
-      const response = await fetch(`/api/review-suggestions/${suggestion.id}/dismiss`, {
+      const payload: PlatformClauseBankEntryCreateRequest = {
+        workspace_id: activeWorkspaceId,
+        contract_type: entry.contract_type || selectedPlaybook?.contract_type || clauseForm.contract_type,
+        issue_type: entry.issue_type ?? clauseForm.issue_type ?? null,
+        represented_party:
+          entry.represented_party ?? selectedPlaybook?.represented_party ?? clauseForm.represented_party ?? null,
+        title: entry.title.trim(),
+        text: strip_suggested_prefix(entry.text),
+        source: entry.source
+      };
+      const response = await fetch("/api/platform/clause-bank", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json"
         },
-        body: JSON.stringify({
-          reason: "Dismissed from the Word add-in task pane."
-        })
+        body: JSON.stringify(payload)
       });
-
       if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+        throw new Error(await extract_error_message(response));
       }
-
-      const nextRun = (await response.json()) as ReviewRunRecord;
-      syncReviewRunState(nextRun);
-      setActionMessage("Suggestion dismissed and persisted to the review run.");
+      await loadClauseBankEntries(activeWorkspaceId);
+      setActionMessage("Saved clause language in the workspace clause bank.");
+      setSavedClauseError(null);
     } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to dismiss the suggestion."
+      setSavedClauseError(
+        error instanceof Error ? error.message : "Unable to save clause language."
       );
     } finally {
-      setIsApplyingAction(false);
+      setIsSavingClause(false);
     }
   }
 
-  async function handleMarkReviewed(suggestion: ReviewSuggestionRecord) {
-    setIsApplyingAction(true);
+  async function submitClauseForm() {
+    if (!activeWorkspaceId) {
+      setSavedClauseError("Choose a workspace before saving a clause.");
+      return;
+    }
+    if (!clauseForm.title.trim() || !clauseForm.text.trim()) {
+      setSavedClauseError("Clause title and text are required.");
+      return;
+    }
+    setIsSavingClause(true);
     try {
-      const response = await fetch(`/api/review-suggestions/${suggestion.id}/mark-reviewed`, {
-        method: "POST",
+      const path = editingClauseId
+        ? `/api/platform/clause-bank/${editingClauseId}`
+        : "/api/platform/clause-bank";
+      const method = editingClauseId ? "PATCH" : "POST";
+      const payload = editingClauseId
+        ? ({
+            contract_type: clauseForm.contract_type,
+            issue_type: clauseForm.issue_type || null,
+            represented_party: clauseForm.represented_party || null,
+            title: clauseForm.title.trim(),
+            text: clauseForm.text.trim()
+          } satisfies PlatformClauseBankEntryUpdateRequest)
+        : ({
+            workspace_id: activeWorkspaceId,
+            contract_type: clauseForm.contract_type,
+            issue_type: clauseForm.issue_type || null,
+            represented_party: clauseForm.represented_party || null,
+            title: clauseForm.title.trim(),
+            text: clauseForm.text.trim(),
+            source: "manual_entry"
+          } satisfies PlatformClauseBankEntryCreateRequest);
+      const response = await fetch(path, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json"
         },
-        body: JSON.stringify({
-          note: "Reviewed in the Word add-in task pane."
-        })
+        body: JSON.stringify(payload)
       });
-
       if (!response.ok) {
-        throw new Error(await extractErrorMessage(response));
+        throw new Error(await extract_error_message(response));
       }
-
-      const nextRun = (await response.json()) as ReviewRunRecord;
-      syncReviewRunState(nextRun);
-      setActionMessage("Suggestion marked reviewed and persisted to the review run.");
+      await loadClauseBankEntries(activeWorkspaceId);
+      setEditingClauseId(null);
+      resetClauseForm();
+      setActionMessage(editingClauseId ? "Updated the clause bank entry." : "Saved a new clause bank entry.");
+      setSavedClauseError(null);
     } catch (error) {
-      setReviewError(
-        error instanceof Error ? error.message : "Unable to mark the suggestion reviewed."
+      setSavedClauseError(
+        error instanceof Error ? error.message : "Unable to save the clause bank entry."
       );
     } finally {
-      setIsApplyingAction(false);
+      setIsSavingClause(false);
     }
   }
+
+  function startEditingClause(clause: PlatformClauseBankEntryRecord) {
+    setEditingClauseId(clause.id);
+    setClauseForm({
+      contract_type: clause.contract_type,
+      issue_type: clause.issue_type ?? "",
+      represented_party: clause.represented_party ?? "",
+      title: clause.title,
+      text: clause.text
+    });
+  }
+
+  function resetClauseForm() {
+    setClauseForm({
+      contract_type: selectedPlaybook?.contract_type ?? "saas_agreement",
+      issue_type: "",
+      represented_party: selectedPlaybook?.represented_party ?? "customer",
+      title: "",
+      text: ""
+    });
+  }
+
+  async function removeSavedClause(clauseId: string) {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/platform/clause-bank/${clauseId}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(await extract_error_message(response));
+      }
+      setSelectedClauseBankEntryIds((current) => current.filter((id) => id !== clauseId));
+      await loadClauseBankEntries(activeWorkspaceId);
+      setActionMessage("Removed the clause from the workspace clause bank.");
+    } catch (error) {
+      setSavedClauseError(
+        error instanceof Error ? error.message : "Unable to delete the clause bank entry."
+      );
+    }
+  }
+
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
+  const selectedPlaybook =
+    playbooks.find((playbook) => playbook.id === selectedPlaybookId) ?? playbooks[0] ?? null;
+  const syncSummary = build_sync_summary(documentSession);
 
   return (
     <main className="page-shell">
       <section className="context-strip">
         <div>
-          <p className="eyebrow">Skua Contracts / Word Add-in</p>
-          <h1>Shared-runtime scaffold</h1>
+          <p className="eyebrow">Skua / Word Add-in</p>
+          <h1>Word-native contract copilot</h1>
           <p className="context-copy">
-            The pane is now aligned to the v1 product contract: review, ask, revise,
-            saved clauses, and settings inside a Word-native workflow.
+            Review, ask, revise, citations, saved fallback language, and provider settings now run through the platform APIs from inside Word.
           </p>
         </div>
         <div className="ribbon-preview">
-          <span>Open Pane</span>
-          <span>Review</span>
-          <span>Ask</span>
-          <span>Revise</span>
+          <span>{sessionUser ? sessionUser.email : "Signed out"}</span>
+          <span>{currentWorkspace?.name ?? "No workspace"}</span>
+          <span>{selectionState?.document_name ?? "Loading document"}</span>
         </div>
       </section>
 
       <section className="host-bar">
         <div className="host-card">
           <p className="section-label">Host status</p>
-          <strong>
-            {selectionState?.host_available ? "Connected to Word" : "Browser preview"}
-          </strong>
+          <strong>{selectionState?.host_available ? "Connected to Word" : "Browser preview"}</strong>
           <p>
             {selectionState
               ? `${selectionState.host_name} / ${selectionState.platform_name}`
@@ -1065,20 +1399,24 @@ export function WordTaskPane({
           </p>
         </div>
         <div className="host-card">
-          <p className="section-label">Requirements</p>
-          <strong>
-            WordApi 1.4: {selectionState?.requirement_support.word_api_14 ? "yes" : "no"}
-          </strong>
-          <p>
-            SharedRuntime 1.1:{" "}
-            {selectionState?.requirement_support.shared_runtime_11 ? "yes" : "no"}
-          </p>
+          <p className="section-label">Document session</p>
+          <strong>{syncSummary.title}</strong>
+          <p>{syncSummary.body}</p>
         </div>
         <div className="host-card">
           <p className="section-label">Actions</p>
           <div className="action-row">
             <button disabled={isRefreshingSelection} onClick={() => void refreshSelection()} type="button">
-              {isRefreshingSelection ? "Refreshing..." : "Refresh selection"}
+              {isRefreshingSelection ? "Refreshing..." : "Refresh Word state"}
+            </button>
+            <button disabled={!sessionUser || isSyncingDocument} onClick={() => void syncCurrentSelection("full_document", true)} type="button">
+              {isSyncingDocument ? "Syncing..." : "Sync document"}
+            </button>
+            <button className="ghost" disabled={!sessionUser || isSyncingDocument} onClick={() => void syncCurrentSelection("selection", true)} type="button">
+              Sync selection
+            </button>
+            <button className="ghost" onClick={() => void handleUndoLastEdit()} type="button">
+              Undo last apply
             </button>
           </div>
         </div>
@@ -1088,17 +1426,25 @@ export function WordTaskPane({
         <div className="word-canvas">
           <div className="word-ruler" />
           <div className="word-page">
-            <p className="doc-kicker">Vendor MSA / current Word selection</p>
+            <p className="doc-kicker">{selectionState?.document_name ?? "Current Word document"}</p>
             <h2>Selection snapshot</h2>
-            <p>{selectionState?.selection_text ?? "Loading selection..."}</p>
+            <p>{selectionState?.selection_text || "Select clause text in Word to scope review, ask, and revise."}</p>
             <p className="selection-chip">
               {selectionState?.change_tracking_mode
                 ? `Track changes: ${selectionState.change_tracking_mode}`
                 : "Track changes: unavailable in preview"}
             </p>
             <div className="selection-details">
-              <span>OOXML captured</span>
-              <strong>{selectionState?.selection_ooxml ? "Yes" : "No"}</strong>
+              <span>Document URL</span>
+              <strong>{selectionState?.document_url ? "Available" : "Not exposed by host"}</strong>
+            </div>
+            <div className="selection-details">
+              <span>Current workspace</span>
+              <strong>{currentWorkspace?.name ?? "Sign in to select a workspace"}</strong>
+            </div>
+            <div className="selection-details">
+              <span>Last synced</span>
+              <strong>{format_date(documentSession?.last_synced_at)}</strong>
             </div>
           </div>
         </div>
@@ -1108,13 +1454,12 @@ export function WordTaskPane({
             <div className="pane-title">
               <span className="app-badge">Skua</span>
               <div>
-                <strong>{pane_context.project_name}</strong>
-                <p>{pane_context.document_name}</p>
+                <strong>{currentWorkspace?.name ?? "Word workspace"}</strong>
+                <p>{selectionState?.document_name ?? "Current Word document"}</p>
               </div>
             </div>
             <p className="meta-line">
-              {pane_context.represented_party} | {pane_context.jurisdiction} |{" "}
-              {pane_context.document_version} | {pane_context.status_label}
+              {sessionUser ? `${sessionUser.email} / ${sessionUser.workspace_ids.length} workspace(s)` : "Sign in from Settings to sync this document and run platform-backed tools."}
             </p>
           </header>
 
@@ -1133,20 +1478,20 @@ export function WordTaskPane({
 
           <div className="banner">
             {activeTab === "review"
-              ? "Using selection scope for a general review run."
+              ? "Review findings stay citation-anchored and can be applied directly in Word."
               : activeTab === "ask"
-                ? "Ask answers are citation-first and source-separated."
+                ? "Ask returns short cited answers or refuses unsupported factual claims."
                 : activeTab === "revise"
-                  ? "Revise returns suggested language that stays separate from sourced facts."
+                  ? "Revise labels every output as suggested language and keeps support separate from draft text."
                   : activeTab === "saved"
-                    ? "Saved clauses are reusable fallback language and review memory."
-                    : "Settings controls provider, billing, and support-side behavior."}
+                    ? "Saved clauses are now workspace-scoped fallback language that can drive review and revise."
+                    : "Settings controls sign-in, workspace selection, and provider configuration."}
           </div>
 
           {selectionError ? <div className="inline-alert error">{selectionError}</div> : null}
-          {selectionState?.status_message ? (
-            <div className="inline-alert">{selectionState.status_message}</div>
-          ) : null}
+          {syncError ? <div className="inline-alert error">{syncError}</div> : null}
+          {authError ? <div className="inline-alert error">{authError}</div> : null}
+          {settingsError ? <div className="inline-alert error">{settingsError}</div> : null}
           {actionMessage ? <div className="inline-alert success">{actionMessage}</div> : null}
 
           <div className="pane-body">
@@ -1154,301 +1499,161 @@ export function WordTaskPane({
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Review setup</p>
-                    <h3>
-                      {reviewRun?.summary?.total ?? 0} suggestions,{" "}
-                      {reviewRun?.summary?.high ?? 0} high
-                    </h3>
+                    <p className="section-label">Review</p>
+                    <h3>{reviewRun ? `${reviewRun.summary.total_findings} findings` : "Run a Word review"}</h3>
                   </div>
-                  <span className="status-pill success">
-                    {reviewRun?.status ?? "ready"}
-                  </span>
+                  <span className="status-pill success">{reviewRun?.status ?? "ready"}</span>
                 </div>
 
-                <div className="run-panel">
-                  <p>
-                    Choose how to analyze this document, then inspect and apply the
-                    returned suggestions.
-                  </p>
-                  <div className="filter-grid">
-                    <label className="field">
-                      <span>Review type</span>
-                      <select
-                        onChange={(event) =>
-                          setReviewType(
-                            event.target.value as ReviewRunCreateRequest["review_type"]
-                          )
-                        }
-                        value={reviewType}
-                      >
-                        <option value="general">General</option>
-                        <option value="negotiate">Negotiate</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Audience</span>
-                      <select
-                        onChange={(event) =>
-                          setReviewAudience(
-                            event.target.value as ReviewRunCreateRequest["audience"]
-                          )
-                        }
-                        value={reviewAudience}
-                      >
-                        <option value="internal">Internal</option>
-                        <option value="counterparty">Counterparty</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="toggle-list">
-                    <Toggle
-                      checked={reviewScope === "full_document"}
-                      label="Full document"
-                      onChange={() => setReviewScope("full_document")}
-                    />
-                    <Toggle
-                      checked={reviewScope === "selection"}
-                      label="Current selection"
-                      onChange={() => setReviewScope("selection")}
-                    />
-                  </div>
-                  <div className="filter-grid">
-                    <label className="field">
-                      <span>Represented party</span>
-                      <input
-                        onChange={(event) => setRepresentedParty(event.target.value)}
-                        value={representedParty}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Jurisdiction</span>
-                      <input
-                        onChange={(event) => setJurisdiction(event.target.value)}
-                        value={jurisdiction}
-                      />
-                    </label>
-                  </div>
-                  <label className="field">
-                    <span>Deal context</span>
-                    <input
-                      onChange={(event) => setDealContextInput(event.target.value)}
-                      value={dealContextInput}
-                    />
-                  </label>
-                  <div className="toggle-list">
-                    <Toggle
-                      checked={insertComments}
-                      label="Insert comments"
-                      onChange={() => setInsertComments((value) => !value)}
-                    />
-                    <Toggle
-                      checked={insertTrackedChanges}
-                      label="Suggest tracked changes"
-                      onChange={() => setInsertTrackedChanges((value) => !value)}
-                    />
-                    <Toggle
-                      checked={includeFallbackPosition}
-                      label="Include fallback position"
-                      onChange={() => setIncludeFallbackPosition((value) => !value)}
-                    />
-                  </div>
-                  <div className="filter-grid">
-                    <label className="field">
-                      <span>Severity threshold</span>
-                      <select
-                        onChange={(event) =>
-                          setSeverityThreshold(
-                            event.target.value as ReviewRunCreateRequest["markup_settings"]["severity_threshold"]
-                          )
-                        }
-                        value={severityThreshold}
-                      >
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="playbook-picker">
-                    <span className="section-label">Playbooks</span>
-                    {livePlaybooks.map((playbook) => (
-                      <label className="checkbox-row" key={playbook.name}>
-                        <input
-                          checked={selectedPlaybookIds.includes(playbook.name)}
-                          onChange={() => togglePlaybookSelection(playbook.name)}
-                          type="checkbox"
-                        />
-                        <span>{playbook.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="action-row">
-                    <button
-                      disabled={isRunningReview || isRefreshingSelection}
-                      onClick={() => void handleRunReview()}
-                      type="button"
-                    >
-                      {isRunningReview
-                        ? "Running review..."
-                        : reviewScope === "full_document"
-                          ? "Run review on document"
-                          : "Run review on selection"}
-                    </button>
-                    <button
-                      className="ghost"
-                      disabled={isExportingSummary || !reviewRun}
-                      onClick={() => void handleExportSummary()}
-                      type="button"
-                    >
-                      {isExportingSummary ? "Exporting..." : "Export to project"}
-                    </button>
-                    <button className="ghost" onClick={() => setReviewRun(null)} type="button">
-                      Clear results
-                    </button>
-                  </div>
-                </div>
-
-                {reviewError ? <div className="inline-alert error">{reviewError}</div> : null}
-
-                {isRunningReview ? (
-                  <div className="progress-panel">
-                    <div className="section-head compact">
-                      <div>
-                        <p className="section-label">Review running</p>
-                        <strong>
-                          {reviewType} review over{" "}
-                          {reviewScope === "full_document" ? "document" : "selection"}
-                        </strong>
-                      </div>
-                      <span>{reviewProgress}%</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-bar-fill" style={{ width: `${reviewProgress}%` }} />
-                    </div>
-                    <p>{reviewStep}</p>
-                    <p className="muted-copy">
-                      High: {reviewRun?.summary?.high ?? 0} Medium:{" "}
-                      {reviewRun?.summary?.medium ?? 0} Low: {reviewRun?.summary?.low ?? 0}
-                    </p>
-                  </div>
-                ) : null}
-
-                <div className="filter-grid">
-                  <label className="field">
-                    <span>Status</span>
-                    <select
-                      onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                      value={statusFilter}
-                    >
-                      <option value="all">All</option>
-                      <option value="open">Open</option>
-                      <option value="reviewed">Reviewed</option>
-                      <option value="applied_comment">Applied comment</option>
-                      <option value="applied_redline">Applied redline</option>
-                      <option value="saved_to_playbook">Saved to playbook</option>
-                      <option value="dismissed">Dismissed</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Severity</span>
-                    <select
-                      onChange={(event) =>
-                        setSeverityFilter(event.target.value as SeverityFilter)
-                      }
-                      value={severityFilter}
-                    >
-                      <option value="all">All</option>
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Type</span>
-                    <select
-                      onChange={(event) => setTypeFilter(event.target.value)}
-                      value={typeFilter}
-                    >
-                      <option value="all">All</option>
-                      {Array.from(
-                        new Set((reviewRun?.suggestions ?? []).map((suggestion) => suggestion.issue_type))
-                      ).map((issueType) => (
-                        <option key={issueType} value={issueType}>
-                          {issueType.replaceAll("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="suggestion-list">
-                  {visibleSuggestions.length > 0 ? (
-                    visibleSuggestions.map((suggestion) => (
-                      <article
-                        className={
-                          suggestion.id === selectedSuggestion?.id
-                            ? "suggestion-card selected"
-                            : "suggestion-card"
-                        }
-                        key={suggestion.id}
-                      >
-                        <button
-                          className="card-button"
-                          onClick={() => setSelectedSuggestionId(suggestion.id)}
-                          type="button"
-                        >
-                        <span className={`severity-chip ${suggestion.severity}`}>
-                          {suggestion.severity}
-                        </span>
-                        <strong>{suggestion.title}</strong>
-                        <p>{suggestion.supporting_excerpt}</p>
-                        <div className="card-meta">
-                          <span>{suggestion.issue_type.replaceAll("_", " ")}</span>
-                          <span>{Math.round(suggestion.confidence * 100)}% confidence</span>
-                        </div>
-                        </button>
-                        <div className="mini-actions">
-                          <button
-                            className="ghost"
-                            onClick={() => void handleLocateAnchor(suggestion)}
-                            type="button"
-                          >
-                            Jump
-                          </button>
-                          <button
-                            className="ghost"
-                            onClick={() => setSelectedSuggestionId(suggestion.id)}
-                            type="button"
-                          >
-                            Review
-                          </button>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-state">
-                      Run a live review to populate suggestion cards from the API.
-                    </div>
-                  )}
-                </div>
-
-                {selectedSuggestion ? (
-                  <SuggestionDetail
-                    availablePlaybooks={livePlaybooks}
-                    isApplyingAction={isApplyingAction}
-                    isLocatingAnchor={isLocatingAnchor}
-                    onLocateAnchor={handleLocateAnchor}
-                    onApplyComment={handleApplyComment}
-                    onDismiss={handleDismissSuggestion}
-                    onMarkReviewed={handleMarkReviewed}
-                    onApplyRedline={handleApplyRedline}
-                    onSaveToPlaybook={handleSaveToPlaybook}
-                    selectionText={selectionState?.selection_text ?? ""}
-                    suggestion={selectedSuggestion}
-                  />
+                {!sessionUser ? (
+                  <div className="empty-state">Sign in from Settings before running Review.</div>
                 ) : (
-                  <div className="empty-state">No suggestions match the current filters.</div>
+                  <>
+                    <div className="run-panel">
+                      <p>Choose a scope and playbook, then sync the relevant Word content and run a stored review.</p>
+                      <div className="toggle-list">
+                        <Toggle checked={reviewScope === "selection"} label="Current selection" onChange={() => setReviewScope("selection")} />
+                        <Toggle checked={reviewScope === "full_document"} label="Full document" onChange={() => setReviewScope("full_document")} />
+                      </div>
+                      <label className="field">
+                        <span>Playbook</span>
+                        <select onChange={(event) => setSelectedPlaybookId(event.target.value)} value={selectedPlaybookId}>
+                          {playbooks.map((playbook) => (
+                            <option key={playbook.id} value={playbook.id}>
+                              {playbook.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="action-row">
+                        <button disabled={isRunningReview || isSyncingDocument} onClick={() => void runReview()} type="button">
+                          {isRunningReview ? "Running review..." : "Run review"}
+                        </button>
+                        <button className="ghost" disabled={isSyncingDocument} onClick={() => void syncCurrentSelection(reviewScope, true)} type="button">
+                          Sync current scope
+                        </button>
+                      </div>
+                    </div>
+
+                    {reviewError ? <div className="inline-alert error">{reviewError}</div> : null}
+
+                    {reviewRun ? (
+                      <>
+                        <div className="filter-grid">
+                          <label className="field">
+                            <span>Status</span>
+                            <select onChange={(event) => setReviewStatusFilter(event.target.value as LocalFindingStatus | "all")} value={reviewStatusFilter}>
+                              <option value="all">All</option>
+                              <option value="open">Open</option>
+                              <option value="applied_comment">Applied comment</option>
+                              <option value="applied_redline">Applied redline</option>
+                              <option value="saved_clause">Saved clause</option>
+                              <option value="dismissed">Dismissed</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span>Severity</span>
+                            <select onChange={(event) => setReviewSeverityFilter(event.target.value as "all" | "high" | "medium" | "low")} value={reviewSeverityFilter}>
+                              <option value="all">All</option>
+                              <option value="high">High</option>
+                              <option value="medium">Medium</option>
+                              <option value="low">Low</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="suggestion-list">
+                          {visibleFindings.map((finding) => (
+                            <article className={finding.id === selectedFinding?.id ? "suggestion-card selected" : "suggestion-card"} key={finding.id}>
+                              <button className="card-button" onClick={() => setSelectedFindingId(finding.id)} type="button">
+                                <span className={`severity-chip ${finding.severity}`}>{finding.severity}</span>
+                                <strong>{finding.title}</strong>
+                                <p>{finding.explanation}</p>
+                                <div className="card-meta">
+                                  <span>{finding.issue_type.replaceAll("_", " ")}</span>
+                                  <span>{Math.round((finding.confidence ?? 0) * 100)}% confidence</span>
+                                </div>
+                              </button>
+                            </article>
+                          ))}
+                        </div>
+
+                        {selectedFinding ? (
+                          <div className="detail-card">
+                            <div className="section-head">
+                              <div>
+                                <p className="section-label">Finding detail</p>
+                                <strong>{selectedFinding.title}</strong>
+                              </div>
+                              <span className="status-pill">{findingStatuses[selectedFinding.id] ?? "open"}</span>
+                            </div>
+                            <div className="detail-section">
+                              <span>Explanation</span>
+                              <p>{selectedFinding.explanation}</p>
+                            </div>
+                            {selectedFinding.proposed_action ? (
+                              <div className="detail-section">
+                                <span>Proposed action</span>
+                                <p>{selectedFinding.proposed_action}</p>
+                              </div>
+                            ) : null}
+                            {selectedFinding.comment_text ? (
+                              <blockquote>{selectedFinding.comment_text}</blockquote>
+                            ) : null}
+                            {selectedFinding.redline_text ? (
+                              <div className="draft-box">
+                                <span>Suggested language</span>
+                                <p>{selectedFinding.redline_text}</p>
+                              </div>
+                            ) : null}
+                            <div className="citation-block">
+                              <p className="section-label">Citations</p>
+                              {selectedFinding.citations.map((citation) => (
+                                <button className="citation-row" key={citation.id} onClick={() => void handleJumpToCitation(citation)} type="button">
+                                  <strong>{citation.label ?? "Source"}</strong>
+                                  <p>{citation.quote}</p>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="action-row">
+                              <button className="ghost" onClick={() => void handleJumpToCitation(selectedFinding.citations[0])} type="button">
+                                Jump to source
+                              </button>
+                              <button disabled={!selectedFinding.comment_text} onClick={() => void applyFindingAction(selectedFinding, "comment")} type="button">
+                                Apply comment
+                              </button>
+                              <button disabled={!selectedFinding.redline_text} onClick={() => void applyFindingAction(selectedFinding, "redline")} type="button">
+                                Apply redline
+                              </button>
+                              <button className="ghost" disabled={!selectedFinding.redline_text} onClick={() => void applyFindingAction(selectedFinding, "insert_fallback")} type="button">
+                                Insert fallback
+                              </button>
+                              <button className="ghost" disabled={!selectedFinding.redline_text} onClick={() => {
+                                void saveClause({
+                                  title: selectedFinding.title,
+                                  text: selectedFinding.redline_text ?? "",
+                                  issue_type: selectedFinding.issue_type,
+                                  contract_type: selectedPlaybook?.contract_type,
+                                  represented_party: selectedPlaybook?.represented_party,
+                                  source: "accepted_suggestion"
+                                });
+                                setFindingStatuses((current) => ({ ...current, [selectedFinding.id]: "saved_clause" }));
+                              }} type="button">
+                                Save clause
+                              </button>
+                              <button className="ghost" onClick={() => void handleDismissFinding(selectedFinding)} type="button">
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="empty-state">No findings match the current filters.</div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="empty-state">Run Review to populate findings for the current document.</div>
+                    )}
+                  </>
                 )}
               </section>
             ) : null}
@@ -1458,95 +1663,58 @@ export function WordTaskPane({
                 <div className="section-head">
                   <div>
                     <p className="section-label">Ask</p>
-                    <h3>Current document + current selection + library</h3>
+                    <h3>Short cited answers</h3>
                   </div>
-                  <span className="status-pill">{askResult.status}</span>
+                  <span className="status-pill">{askRun?.status ?? "ready"}</span>
                 </div>
 
-                <div className="toggle-list">
-                  <Toggle
-                    checked={askToggles.current_document}
-                    label="Current document"
-                    onChange={() => toggleAskSource("current_document")}
-                  />
-                  <Toggle
-                    checked={askToggles.current_selection}
-                    label="Current selection"
-                    onChange={() => toggleAskSource("current_selection")}
-                  />
-                  <Toggle
-                    checked={askToggles.uploaded_references}
-                    label="Uploaded references"
-                    onChange={() => toggleAskSource("uploaded_references")}
-                  />
-                  <Toggle
-                    checked={askToggles.org_library}
-                    label="Org library"
-                    onChange={() => toggleAskSource("org_library")}
-                  />
-                  <Toggle
-                    checked={askToggles.legal_sources}
-                    label="Legal sources"
-                    onChange={() => toggleAskSource("legal_sources")}
-                  />
-                  <Toggle
-                    checked={askToggles.web_search}
-                    label="Web search"
-                    onChange={() => toggleAskSource("web_search")}
-                  />
-                </div>
-
-                <label className="field">
-                  <span>Question</span>
-                  <textarea onChange={(event) => setAskQuestion(event.target.value)} value={askQuestion} />
-                </label>
-
-                <label className="field">
-                  <span>Answer format</span>
-                  <select
-                    onChange={(event) =>
-                      setAskAnswerType(event.target.value as AskRunRecord["answer_type"])
-                    }
-                    value={askAnswerType}
-                  >
-                    <option value="plain">Plain answer</option>
-                    <option value="clause">Clause draft</option>
-                    <option value="checklist">Checklist</option>
-                    <option value="issue_list">Issue list</option>
-                    <option value="comparison_table">Comparison table</option>
-                    <option value="memo">Memo</option>
-                  </select>
-                </label>
-
-                {askError ? <div className="inline-alert error">{askError}</div> : null}
-
-                <div className="action-row">
-                  <button disabled={isRunningAsk} onClick={() => void handleAsk()} type="button">
-                    {isRunningAsk ? "Running Ask..." : "Ask"}
-                  </button>
-                </div>
-
-                <div className="answer-card">
-                  <p className="section-label">Answer</p>
-                  <p>{askResult.answer_markdown}</p>
-                </div>
-
-                <div className="citation-block">
-                  <p className="section-label">Citations</p>
-                  {askResult.citations.map((citation) => (
-                    <div className="citation-row" key={citation.anchor_id}>
-                      <strong>{citation.label}</strong>
-                      <p>{citation.quote}</p>
+                {!sessionUser ? (
+                  <div className="empty-state">Sign in from Settings before running Ask.</div>
+                ) : (
+                  <>
+                    <div className="toggle-list">
+                      <Toggle checked={askScope === "selection"} label="Prefer current selection" onChange={() => setAskScope("selection")} />
+                      <Toggle checked={askScope === "full_document"} label="Use full document" onChange={() => setAskScope("full_document")} />
                     </div>
-                  ))}
-                </div>
 
-                <div className="action-row">
-                  <button type="button">Turn into clause</button>
-                  <button className="ghost" type="button">
-                    Copy to memo
-                  </button>
-                </div>
+                    <label className="field">
+                      <span>Question</span>
+                      <textarea onChange={(event) => setAskQuestion(event.target.value)} value={askQuestion} />
+                    </label>
+
+                    {askError ? <div className="inline-alert error">{askError}</div> : null}
+
+                    <div className="action-row">
+                      <button disabled={isRunningAsk} onClick={() => void runAsk()} type="button">
+                        {isRunningAsk ? "Running Ask..." : "Ask"}
+                      </button>
+                    </div>
+
+                    {askRun?.answer ? (
+                      <>
+                        <div className="answer-card">
+                          <p className="section-label">Answer</p>
+                          <p>{askRun.answer.answer_text}</p>
+                        </div>
+                        <div className="citation-block">
+                          <p className="section-label">Citations</p>
+                          {askRun.answer.citations.length > 0 ? (
+                            askRun.answer.citations.map((citation) => (
+                              <button className="citation-row" key={citation.id} onClick={() => void handleJumpToCitation(citation)} type="button">
+                                <strong>{citation.label ?? "Source"}</strong>
+                                <p>{citation.quote}</p>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="empty-state">No cited support was found for this question.</div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="empty-state">Ask will return 1–3 citations or refuse unsupported factual claims.</div>
+                    )}
+                  </>
+                )}
               </section>
             ) : null}
 
@@ -1554,124 +1722,111 @@ export function WordTaskPane({
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Revise clause</p>
-                    <h3>Suggested language with clause context</h3>
+                    <p className="section-label">Revise</p>
+                    <h3>Suggested language with grounded support</h3>
                   </div>
-                  <span className="status-pill">{draftResult.status}</span>
+                  <span className="status-pill">{reviseRun?.status ?? "ready"}</span>
                 </div>
 
-                <div className="toggle-list">
-                  <Toggle
-                    checked={draftMode === "library"}
-                    label="Use saved language"
-                    onChange={() => setDraftMode("library")}
-                  />
-                  <Toggle
-                    checked={draftMode === "instruction"}
-                    label="Follow instruction"
-                    onChange={() => setDraftMode("instruction")}
-                  />
-                  <Toggle
-                    checked={draftMode === "improve"}
-                    label="Improve clause"
-                    onChange={() => setDraftMode("improve")}
-                  />
-                </div>
-
-                {draftMode === "instruction" ? (
-                  <label className="field">
-                    <span>Instruction</span>
-                    <textarea
-                      onChange={(event) => setDraftInstruction(event.target.value)}
-                      value={draftInstruction}
-                    />
-                  </label>
-                ) : null}
-
-                <label className="field">
-                  <span>Saved clause search</span>
-                  <input
-                    onChange={(event) => setDraftQuery(event.target.value)}
-                    placeholder="assignment clause affiliate carve-out"
-                    value={draftQuery}
-                  />
-                </label>
-
-                {draftError ? <div className="inline-alert error">{draftError}</div> : null}
-
-                <div className="action-row">
-                  <button disabled={isRunningDraft} onClick={() => void handleDraftRun()} type="button">
-                    {isRunningDraft ? "Running revise..." : "Generate suggested language"}
-                  </button>
-                </div>
-
-                <div className="answer-card">
-                  <p className="section-label">Suggested language</p>
-                  <p>{draftResult.generated_text || "Run Revise to generate suggested language."}</p>
-                </div>
-
-                {draftResult.citations.length > 0 ? (
-                  <div className="citation-block">
-                    <p className="section-label">Citations</p>
-                    {draftResult.citations.map((citation) => (
-                      <div className="citation-row" key={citation.anchor_id}>
-                        <strong>{citation.label}</strong>
-                        <p>{citation.quote}</p>
+                {!sessionUser ? (
+                  <div className="empty-state">Sign in from Settings before running Revise.</div>
+                ) : (
+                  <>
+                    <label className="field">
+                      <span>Instruction</span>
+                      <textarea onChange={(event) => setReviseInstruction(event.target.value)} value={reviseInstruction} />
+                    </label>
+                    <div className="saved-notes-panel">
+                      <p className="section-label">Preferred saved clauses</p>
+                      <div className="saved-note-list">
+                        {savedClauses.length > 0 ? (
+                          savedClauses.slice(0, 6).map((clause) => (
+                            <button
+                              className={selectedClauseBankEntryIds.includes(clause.id) ? "citation-row selected" : "citation-row"}
+                              key={clause.id}
+                              onClick={() =>
+                                setSelectedClauseBankEntryIds((current) =>
+                                  current.includes(clause.id)
+                                    ? current.filter((id) => id !== clause.id)
+                                    : [...current, clause.id]
+                                )
+                              }
+                              type="button"
+                            >
+                              <strong>{clause.title}</strong>
+                              <p>{clause.issue_type?.replaceAll("_", " ") ?? clause.contract_type}</p>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="empty-state">No saved clauses yet. Revise will still search the workspace clause bank automatically once you start saving language.</div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                ) : null}
+                    </div>
+                    <div className="answer-card">
+                      <p className="section-label">Current selection</p>
+                      <p>{selectionState?.selection_text || "Select clause text in Word before revising."}</p>
+                    </div>
 
-                <div className="result-list">
-                  {visibleDraftResults.map((item, index) => (
-                    <article className="result-card" key={item.id}>
-                      <div className="section-head compact">
-                        <div>
-                          <strong>{item.title}</strong>
-                          <p>{item.subtitle}</p>
+                    {reviseError ? <div className="inline-alert error">{reviseError}</div> : null}
+
+                    <div className="action-row">
+                      <button disabled={isRunningRevise} onClick={() => void runRevise()} type="button">
+                        {isRunningRevise ? "Running Revise..." : "Generate suggested language"}
+                      </button>
+                    </div>
+
+                    {reviseRun ? (
+                      <>
+                        <div className="answer-card">
+                          <p className="section-label">Suggested language</p>
+                          <p>{reviseRun.suggested_text}</p>
                         </div>
-                        <span className="rank-pill">#{index + 1}</span>
-                      </div>
-                      <p>{item.preview}</p>
-                      <p className="muted-copy">{item.provenance}</p>
-                      <div className="draft-box">
-                        <span>Adjusted draft</span>
-                        <p>{item.adjusted_text}</p>
-                      </div>
-                      <div className="action-row">
-                        <button
-                          onClick={() =>
-                            void handleInsertDraftText(
-                              draftResult.status === "succeeded"
-                                ? draftResult.generated_text
-                                : draftMode === "instruction"
-                                  ? draftInstruction
-                                  : item.adjusted_text
-                            )
-                          }
-                          type="button"
-                        >
-                          Replace selection
-                        </button>
-                        <button
-                          className="ghost"
-                          onClick={() =>
-                            void handleCopyDraftText(
-                              draftResult.status === "succeeded"
-                                ? draftResult.generated_text
-                                : draftMode === "instruction"
-                                  ? draftInstruction
-                                  : item.adjusted_text
-                            )
-                          }
-                          type="button"
-                        >
-                          Copy language
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                        {reviseRun.rationale ? (
+                          <div className="detail-card">
+                            <div className="detail-section">
+                              <span>Rationale</span>
+                              <p>{reviseRun.rationale}</p>
+                            </div>
+                          </div>
+                        ) : null}
+                        <div className="citation-block">
+                          <p className="section-label">Citations</p>
+                          {reviseRun.citations.map((citation) => (
+                            <button className="citation-row" key={citation.id} onClick={() => void handleJumpToCitation(citation)} type="button">
+                              <strong>{citation.label ?? "Source"}</strong>
+                              <p>{citation.quote}</p>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="action-row">
+                          <button onClick={() => void applyReviseSuggestion("replace")} type="button">
+                            Replace selection
+                          </button>
+                          <button className="ghost" onClick={() => void applyReviseSuggestion("insert_after")} type="button">
+                            Insert after
+                          </button>
+                          <button className="ghost" onClick={() => {
+                            void navigator.clipboard.writeText(strip_suggested_prefix(reviseRun.suggested_text ?? ""));
+                            setActionMessage("Copied the suggested language to the clipboard.");
+                          }} type="button">
+                            Copy
+                          </button>
+                          <button className="ghost" onClick={() => void saveClause({
+                            title: selectionState?.document_name ? `Saved from ${selectionState.document_name}` : "Saved revised clause",
+                            text: reviseRun.suggested_text ?? "",
+                            contract_type: selectedPlaybook?.contract_type ?? clauseForm.contract_type,
+                            represented_party: selectedPlaybook?.represented_party ?? clauseForm.represented_party,
+                            source: "selected_document_text"
+                          })} type="button">
+                            Save clause
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="empty-state">Revise uses the current clause, current document, and selected playbook when available.</div>
+                    )}
+                  </>
+                )}
               </section>
             ) : null}
 
@@ -1680,104 +1835,113 @@ export function WordTaskPane({
                 <div className="section-head">
                   <div>
                     <p className="section-label">Saved clauses</p>
-                    <h3>Reusable fallback language</h3>
+                    <h3>{savedClauses.length} workspace clause{savedClauses.length === 1 ? "" : "s"}</h3>
                   </div>
-                  <div className="action-row">
-                    <button
-                      className="ghost"
-                      disabled={isRefreshingPlaybooks}
-                      onClick={() => void loadPlaybookData()}
-                      type="button"
-                    >
-                      {isRefreshingPlaybooks ? "Refreshing..." : "Refresh"}
-                    </button>
-                  </div>
+                  <span className="status-pill">workspace memory</span>
                 </div>
 
-                {playbookError ? <div className="inline-alert error">{playbookError}</div> : null}
-
-                {savedPlaybookNotes.length > 0 ? (
-                  <div className="saved-notes-panel">
-                    <div className="section-head compact">
-                      <div>
-                        <p className="section-label">Recent saved clauses</p>
-                        <strong>{savedPlaybookNotes.length} saved note(s)</strong>
-                      </div>
+                <div className="saved-notes-panel">
+                  <p>Save preferred fallback language here so review and revise can prioritize your language over generic defaults.</p>
+                  {savedClauseError ? <div className="inline-alert error">{savedClauseError}</div> : null}
+                  <div className="run-panel">
+                    <label className="field">
+                      <span>Title</span>
+                      <input
+                        onChange={(event) => setClauseForm((current) => ({ ...current, title: event.target.value }))}
+                        value={clauseForm.title}
+                      />
+                    </label>
+                    <div className="filter-grid">
+                      <label className="field">
+                        <span>Contract type</span>
+                        <select
+                          onChange={(event) => setClauseForm((current) => ({ ...current, contract_type: event.target.value }))}
+                          value={clauseForm.contract_type}
+                        >
+                          {supported_contract_types.map((contractType) => (
+                            <option key={contractType.value} value={contractType.value}>
+                              {contractType.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Issue type</span>
+                        <input
+                          onChange={(event) => setClauseForm((current) => ({ ...current, issue_type: event.target.value }))}
+                          placeholder="suspension"
+                          value={clauseForm.issue_type}
+                        />
+                      </label>
                     </div>
-                    <div className="saved-note-list">
-                      {savedPlaybookNotes.slice(0, 5).map((note) => (
-                        <article className="saved-note-card" key={note.id}>
+                    <div className="filter-grid">
+                      <label className="field">
+                        <span>Represented party</span>
+                        <input
+                          onChange={(event) => setClauseForm((current) => ({ ...current, represented_party: event.target.value }))}
+                          placeholder="customer"
+                          value={clauseForm.represented_party}
+                        />
+                      </label>
+                    </div>
+                    <label className="field">
+                      <span>Clause text</span>
+                      <textarea
+                        onChange={(event) => setClauseForm((current) => ({ ...current, text: event.target.value }))}
+                        value={clauseForm.text}
+                      />
+                    </label>
+                    <div className="action-row">
+                      <button disabled={isSavingClause} onClick={() => void submitClauseForm()} type="button">
+                        {isSavingClause ? "Saving..." : editingClauseId ? "Update clause" : "Save clause"}
+                      </button>
+                      <button className="ghost" onClick={() => resetClauseForm()} type="button">
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <div className="saved-note-list">
+                    {savedClauses.length > 0 ? (
+                      savedClauses.map((clause) => (
+                        <article className="saved-note-card" key={clause.id}>
                           <div className="section-head compact">
                             <div>
-                              <strong>{note.title}</strong>
-                              <p>
-                                {note.playbook_id}
-                                {note.playbook_check_id
-                                  ? ` / ${note.playbook_check_id}`
-                                  : " / general note"}{" "}
-                                | {note.created_at}
+                              <strong>{clause.title}</strong>
+                              <p className="muted-copy">
+                                {[clause.contract_type, clause.issue_type, clause.represented_party, clause.source]
+                                  .filter(Boolean)
+                                  .join(" / ")}
                               </p>
                             </div>
-                            <span className={`severity-chip ${note.severity}`}>
-                              {note.severity}
-                            </span>
+                            <span className="status-pill">{format_date(clause.updated_at)}</span>
                           </div>
-                          <p>{note.note}</p>
-                          <blockquote>{note.supporting_excerpt}</blockquote>
+                          <p>{clause.text}</p>
+                          <div className="action-row">
+                            <button onClick={() => void applySavedClause(clause, "replace")} type="button">
+                              Replace selection
+                            </button>
+                            <button className="ghost" onClick={() => void applySavedClause(clause, "insert_after")} type="button">
+                              Insert after
+                            </button>
+                            <button className="ghost" onClick={() => {
+                              void navigator.clipboard.writeText(strip_suggested_prefix(clause.text));
+                              setActionMessage("Copied the saved clause to the clipboard.");
+                            }} type="button">
+                              Copy
+                            </button>
+                            <button className="ghost" onClick={() => startEditingClause(clause)} type="button">
+                              Edit
+                            </button>
+                            <button className="ghost" onClick={() => removeSavedClause(clause.id)} type="button">
+                              Delete
+                            </button>
+                          </div>
                         </article>
-                      ))}
-                    </div>
+                      ))
+                    ) : (
+                      <div className="empty-state">Save clause language from Review or Revise to reuse it here.</div>
+                    )}
                   </div>
-                ) : (
-                  <div className="empty-state">
-                    Saved clause notes will appear here after you capture them from a
-                    review finding.
-                  </div>
-                )}
-
-                {visiblePlaybooks.map((playbook) => (
-                  <article className="playbook-card" key={playbook.id}>
-                    <div className="section-head compact">
-                      <div>
-                        <strong>{playbook.name}</strong>
-                        <p>
-                          {playbook.version} | {playbook.check_count} starter checks
-                        </p>
-                      </div>
-                      <span className="status-pill">Ready</span>
-                    </div>
-                    <p>{playbook.summary}</p>
-                    {"checks" in playbook && Array.isArray(playbook.checks) ? (
-                      <div className="playbook-check-list">
-                        {playbook.checks.slice(0, 3).map((check) => (
-                          <div className="citation-row" key={check.id}>
-                            <strong>{check.label}</strong>
-                            <p>{check.question}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="action-row">
-                      <button onClick={() => handleRunPlaybook(playbook.name)} type="button">
-                        Use in review
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={() => void handleExportPlaybook(playbook)}
-                        type="button"
-                      >
-                        Copy JSON
-                      </button>
-                    </div>
-                  </article>
-                ))}
-
-                <div className="import-panel">
-                  <strong>Clause bank direction</strong>
-                  <p>
-                    The saved-clause surface is backed by captured review notes today and will
-                    evolve into first-class clause-bank CRUD in the next slice.
-                  </p>
                 </div>
               </section>
             ) : null}
@@ -1787,57 +1951,219 @@ export function WordTaskPane({
                 <div className="section-head">
                   <div>
                     <p className="section-label">Settings</p>
-                    <h3>Providers, billing, and support controls</h3>
+                    <h3>{sessionUser ? "Workspace and provider settings" : "Sign in to the add-in"}</h3>
                   </div>
-                </div>
-                <div className="bullet-panel">
-                  <p className="section-label">Workspace</p>
-                  <div className="clause-row">
-                    <div className="stack-inline">
-                      <span>Current workspace</span>
-                      <small>{pane_context.project_name}</small>
-                    </div>
-                  </div>
-                  <div className="clause-row">
-                    <div className="stack-inline">
-                      <span>Document</span>
-                      <small>{pane_context.document_name}</small>
-                    </div>
-                  </div>
+                  <span className="status-pill">{sessionUser ? "connected" : "signed out"}</span>
                 </div>
 
-                <div className="bullet-panel">
-                  <p className="section-label">Provider mode</p>
-                  <div className="clause-row">
-                    <div className="stack-inline">
-                      <span>Default mode</span>
-                      <small>Hosted provider mode is assumed until BYOK lands.</small>
+                {!sessionUser ? (
+                  <div className="run-panel">
+                    <div className="toggle-list">
+                      <Toggle checked={sessionMode === "login"} label="Sign in" onChange={() => setSessionMode("login")} />
+                      <Toggle checked={sessionMode === "register"} label="Register" onChange={() => setSessionMode("register")} />
+                    </div>
+                    {sessionMode === "register" ? (
+                      <label className="field">
+                        <span>Full name</span>
+                        <input onChange={(event) => setAuthForm((current) => ({ ...current, full_name: event.target.value }))} value={authForm.full_name ?? ""} />
+                      </label>
+                    ) : null}
+                    <label className="field">
+                      <span>Email</span>
+                      <input onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} type="email" value={authForm.email} />
+                    </label>
+                    <label className="field">
+                      <span>Password</span>
+                      <input onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} type="password" value={authForm.password} />
+                    </label>
+                    <div className="action-row">
+                      <button disabled={isSubmittingAuth || isLoadingSession} onClick={() => void handleAuthSubmit()} type="button">
+                        {isSubmittingAuth ? "Submitting..." : sessionMode === "register" ? "Register" : "Sign in"}
+                      </button>
                     </div>
                   </div>
-                  <div className="clause-row">
-                    <div className="stack-inline">
-                      <span>API base URL</span>
-                      <small>
-                        {process.env.NEXT_PUBLIC_SKUA_API_BASE_URL ??
-                          process.env.SKUA_API_BASE_URL ??
-                          "http://127.0.0.1:8000"}
-                      </small>
+                ) : (
+                  <>
+                    <div className="detail-card">
+                      <div className="section-head compact">
+                        <div>
+                          <p className="section-label">Session</p>
+                          <strong>{sessionUser.email}</strong>
+                        </div>
+                        <button className="ghost" onClick={() => void handleLogout()} type="button">
+                          Sign out
+                        </button>
+                      </div>
+                      <label className="field">
+                        <span>Workspace</span>
+                        <select onChange={(event) => setActiveWorkspaceId(event.target.value)} value={activeWorkspaceId}>
+                          {workspaces.map((workspace) => (
+                            <option key={workspace.id} value={workspace.id}>
+                              {workspace.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <p className="muted-copy">
+                        {isLoadingWorkspaceData
+                          ? "Loading workspace data..."
+                          : `${documentVersions.length} synced document version(s) in this workspace.`}
+                      </p>
                     </div>
-                  </div>
-                </div>
 
-                <div className="bullet-panel">
-                  <p className="section-label">Cost control</p>
-                  <div className="clause-row">
-                    <div className="stack-inline">
-                      <span>Current state</span>
-                      <small>
-                        Usage ledger, spend caps, billing warnings, and deletion controls are
-                        part of the next execution slice.
-                      </small>
+                    <div className="run-panel">
+                      <p className="section-label">Provider configuration</p>
+                      <label className="field">
+                        <span>Provider name</span>
+                        <input onChange={(event) => setProviderForm((current) => ({ ...current, provider_name: event.target.value }))} value={providerForm.provider_name} />
+                      </label>
+                      <label className="field">
+                        <span>Encrypted secret / API key</span>
+                        <input onChange={(event) => setProviderForm((current) => ({ ...current, encrypted_secret: event.target.value }))} value={providerForm.encrypted_secret ?? ""} />
+                      </label>
+                      <label className="field">
+                        <span>Model policy JSON</span>
+                        <textarea onChange={(event) => setProviderPolicyInput(event.target.value)} value={providerPolicyInput} />
+                      </label>
+                      <div className="action-row">
+                        <button disabled={isSavingProvider} onClick={() => void handleSaveProviderConfig()} type="button">
+                          {isSavingProvider ? "Saving..." : "Save provider settings"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
+
+                    <div className="detail-card">
+                      <div className="section-head compact">
+                        <div>
+                          <p className="section-label">Billing</p>
+                          <strong>{billingSummary ? `${billingSummary.plan_type} plan` : "Loading usage"}</strong>
+                        </div>
+                        <span className={billingSummary?.over_cap ? "status-pill high" : billingSummary?.warning ? "status-pill medium" : "status-pill success"}>
+                          {billingSummary?.over_cap ? "over cap" : billingSummary?.warning ? "warning" : "within policy"}
+                        </span>
+                      </div>
+                      {billingSummary ? (
+                        <>
+                          <p className="muted-copy">
+                            Current month spend ${billingSummary.actual_cost.toFixed(2)} across {billingSummary.run_count} run(s). Warning at ${billingSummary.warning_threshold.toFixed(2)}, hard cap at ${billingSummary.hard_cap.toFixed(2)}, per-run limit ${billingSummary.per_run_limit.toFixed(2)}.
+                          </p>
+                          <div className="saved-note-list">
+                            {billingSummary.recent_runs.slice(0, 5).map((run) => (
+                              <article className="saved-note-card" key={run.id}>
+                                <div className="section-head compact">
+                                  <div>
+                                    <strong>{run.run_type}</strong>
+                                    <p className="muted-copy">{run.provider} / {run.model}</p>
+                                  </div>
+                                  <span className="status-pill">${(run.actual_cost ?? 0).toFixed(3)}</span>
+                                </div>
+                                <p>{format_date(run.created_at)}</p>
+                              </article>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="empty-state">Billing summary will appear after the first run in this workspace.</div>
+                      )}
+                    </div>
+
+                    <div className="saved-notes-panel">
+                      <p className="section-label">Provider configs</p>
+                      <div className="saved-note-list">
+                        {providerConfigs.length > 0 ? (
+                          providerConfigs.map((config) => (
+                            <article className="saved-note-card" key={config.id}>
+                              <div className="section-head compact">
+                                <div>
+                                  <strong>{config.provider_name}</strong>
+                                  <p className="muted-copy">{config.plan_type} / {config.masked_secret ?? "hosted credentials"}</p>
+                                </div>
+                                <button className="ghost" onClick={() => void handleDeleteProviderConfig(config.id)} type="button">
+                                  Delete
+                                </button>
+                              </div>
+                              <p>{JSON.stringify(config.model_policy)}</p>
+                            </article>
+                          ))
+                        ) : (
+                          <div className="empty-state">No provider settings saved for this workspace yet.</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="saved-notes-panel">
+                      <p className="section-label">Data deletion</p>
+                      <div className="saved-note-list">
+                        {documentVersions.length > 0 ? (
+                          documentVersions.slice(0, 8).map((documentVersion) => (
+                            <article className="saved-note-card" key={documentVersion.id}>
+                              <div className="section-head compact">
+                                <div>
+                                  <strong>{documentVersion.name}</strong>
+                                  <p className="muted-copy">{documentVersion.document_id}</p>
+                                </div>
+                                <button className="ghost" onClick={() => void handleDeleteDocument(documentVersion.document_id)} type="button">
+                                  Delete document
+                                </button>
+                              </div>
+                              <p>{documentVersion.status} / {documentVersion.parse_status} / {format_date(documentVersion.created_at)}</p>
+                            </article>
+                          ))
+                        ) : (
+                          <div className="empty-state">No synced documents in this workspace yet.</div>
+                        )}
+                        {matters.length > 0 ? (
+                          matters.map((matter) => (
+                            <article className="saved-note-card" key={matter.id}>
+                              <div className="section-head compact">
+                                <div>
+                                  <strong>{matter.name}</strong>
+                                  <p className="muted-copy">{matter.represented_party ?? "represented party not set"}</p>
+                                </div>
+                                <button className="ghost" onClick={() => void handleDeleteMatter(matter.id)} type="button">
+                                  Delete matter
+                                </button>
+                              </div>
+                              <p>{matter.status} / {format_date(matter.created_at)}</p>
+                            </article>
+                          ))
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="detail-card">
+                      <div className="section-head compact">
+                        <div>
+                          <p className="section-label">Trust</p>
+                          <strong>Storage and provider posture</strong>
+                        </div>
+                        <span className="status-pill success">word-ready</span>
+                      </div>
+                      {trustProfile ? (
+                        <div className="memo-sections">
+                          <article className="memo-card">
+                            <h3>Stored data</h3>
+                            <p>{trustProfile.storage_summary.join(" ")}</p>
+                          </article>
+                          <article className="memo-card">
+                            <h3>Providers and training</h3>
+                            <p>{trustProfile.provider_visibility.join(" ")} {trustProfile.training_policy}</p>
+                          </article>
+                          <article className="memo-card">
+                            <h3>Deletion and retention</h3>
+                            <p>{trustProfile.delete_behavior.join(" ")} {trustProfile.retention_policy.join(" ")}</p>
+                          </article>
+                          <article className="memo-card">
+                            <h3>BYOK</h3>
+                            <p>{trustProfile.byok_behavior.join(" ")}</p>
+                          </article>
+                        </div>
+                      ) : (
+                        <div className="empty-state">Loading trust details.</div>
+                      )}
+                    </div>
+                  </>
+                )}
               </section>
             ) : null}
           </div>
@@ -1847,506 +2173,155 @@ export function WordTaskPane({
   );
 }
 
-function SuggestionDetail({
-  availablePlaybooks,
-  suggestion,
-  onApplyComment,
-  onApplyRedline,
-  onDismiss,
-  onMarkReviewed,
-  onLocateAnchor,
-  onSaveToPlaybook,
-  isApplyingAction,
-  isLocatingAnchor,
-  selectionText
-}: {
-  availablePlaybooks: PlaybookRecord[];
-  suggestion: ReviewSuggestionRecord;
-  onApplyComment: (suggestion: ReviewSuggestionRecord) => Promise<void>;
-  onApplyRedline: (suggestion: ReviewSuggestionRecord) => Promise<void>;
-  onDismiss: (suggestion: ReviewSuggestionRecord) => Promise<void>;
-  onMarkReviewed: (suggestion: ReviewSuggestionRecord) => Promise<void>;
-  onLocateAnchor: (suggestion: ReviewSuggestionRecord) => Promise<void>;
-  onSaveToPlaybook: (
-    suggestion: ReviewSuggestionRecord,
-    options: PlaybookSaveOptions
-  ) => Promise<void>;
-  isApplyingAction: boolean;
-  isLocatingAnchor: boolean;
-  selectionText: string;
-}) {
-  const [selectedPlaybookId, setSelectedPlaybookId] = useState("");
-  const [selectedCheckId, setSelectedCheckId] = useState("");
-  const [isSaveFormOpen, setIsSaveFormOpen] = useState(false);
-
-  const anchorTargetQuote = resolveAnchorTargetQuote(suggestion);
-  const selectionAssessment = buildSelectionAssessment(selectionText, suggestion);
-  const anchorActionLabel = buildAnchorActionLabel(suggestion);
-  const reconciliationGuidance = buildReconciliationGuidance(
-    suggestion.anchor_reconciliation_status
-  );
-  const selectedPlaybook =
-    availablePlaybooks.find((playbook) => playbook.name === selectedPlaybookId) ?? null;
-  const availableChecks = selectedPlaybook?.checks ?? [];
-
-  useEffect(() => {
-    const nextPlaybookId = resolveSuggestedPlaybookId(availablePlaybooks, suggestion);
-    setSelectedPlaybookId(nextPlaybookId);
-  }, [availablePlaybooks, suggestion]);
-
-  useEffect(() => {
-    const nextCheckId = resolveSuggestedCheckId(availableChecks, suggestion);
-    setSelectedCheckId(nextCheckId);
-  }, [availableChecks, suggestion]);
-
-  return (
-    <article className="detail-card">
-      <div className="section-head">
-        <div>
-          <p className="section-label">Suggestion detail</p>
-          <h3>{suggestion.title}</h3>
-        </div>
-        <span className={`severity-chip ${suggestion.severity}`}>{suggestion.severity}</span>
-      </div>
-
-      <div className="detail-section">
-        <span>Why this matters</span>
-        <p>{suggestion.explanation}</p>
-      </div>
-
-      <div className="detail-section">
-        <span>Source excerpt</span>
-        <blockquote>{suggestion.supporting_excerpt}</blockquote>
-        <div className="action-row">
-          <button
-            className="ghost"
-            disabled={isLocatingAnchor}
-            onClick={() => void onLocateAnchor(suggestion)}
-            type="button"
-          >
-            Jump to source
-          </button>
-        </div>
-      </div>
-
-      {suggestion.proposed_comment ? (
-        <div className="detail-section">
-          <span>Proposed comment</span>
-          <p>{suggestion.proposed_comment}</p>
-        </div>
-      ) : null}
-
-      {suggestion.proposed_redline ? (
-        <div className="detail-section">
-          <span>Proposed redline</span>
-          <p>{suggestion.proposed_redline.replacement_text}</p>
-        </div>
-      ) : null}
-
-      {suggestion.fallback_position_text ? (
-        <div className="detail-section">
-          <span>Fallback position</span>
-          <p>{suggestion.fallback_position_text}</p>
-        </div>
-      ) : null}
-
-      <div className="citation-block">
-        <p className="section-label">Citations</p>
-        {suggestion.citations.map((citation) => (
-          <div className="citation-row" key={citation.anchor_id}>
-            <strong>{citation.label}</strong>
-            <p>{citation.quote}</p>
-          </div>
-        ))}
-      </div>
-
-      {suggestion.reviewer_note ? (
-        <div className="detail-section">
-          <span>Reviewer note</span>
-          <p>{suggestion.reviewer_note}</p>
-        </div>
-      ) : null}
-
-      {suggestion.anchor_reconciliation_status ? (
-        <div className="detail-section">
-          <span>Anchor reconciliation</span>
-          <div
-            className={`reconciliation-card reconciliation-${suggestion.anchor_reconciliation_status}`}
-          >
-            <strong>{suggestion.anchor_reconciliation_status}</strong>
-            <p>
-              {suggestion.anchor_reconciliation_note ??
-                "No reconciliation note was recorded."}
-            </p>
-            {reconciliationGuidance ? <p>{reconciliationGuidance}</p> : null}
-          </div>
-        </div>
-      ) : null}
-
-      {selectionAssessment ? (
-        <div className="detail-section">
-          <span>Current selection check</span>
-          <div
-            className={`reconciliation-card reconciliation-${selectionAssessment.status}`}
-          >
-            <strong>{selectionAssessment.label}</strong>
-            <p>{selectionAssessment.detail}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {suggestion.latest_anchor?.quote ? (
-        <div className="detail-section">
-          <span>Latest anchor snapshot</span>
-          <blockquote>{suggestion.latest_anchor.quote}</blockquote>
-        </div>
-      ) : null}
-
-      {suggestion.events && suggestion.events.length > 0 ? (
-        <div className="detail-section">
-          <span>Action history</span>
-          <div className="event-list">
-            {suggestion.events.map((event) => (
-              <div className="event-card" key={event.id}>
-                <strong>{event.action.replaceAll("_", " ")}</strong>
-                <p>{event.note ?? event.client_message ?? "No extra note recorded."}</p>
-                {event.applied_anchor?.quote ? (
-                  <blockquote>{event.applied_anchor.quote}</blockquote>
-                ) : null}
-                <p className="muted-copy">{event.created_at}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {anchorTargetQuote ? (
-        <div className="detail-section">
-          <span>Anchor recovery</span>
-          <div className="recovery-panel">
-            <p>
-              Jump Word to the closest matching clause when the current selection no
-              longer lines up with this suggestion.
-            </p>
-            <div className="action-row">
-              <button
-                className={
-                  suggestion.anchor_reconciliation_status === "drifted" ? "" : "ghost"
-                }
-                disabled={isApplyingAction || isLocatingAnchor}
-                onClick={() => void onLocateAnchor(suggestion)}
-                type="button"
-              >
-                {isLocatingAnchor ? "Locating..." : anchorActionLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {availablePlaybooks.length > 0 && (isSaveFormOpen || Boolean(suggestion.saved_playbook_id)) ? (
-        <div className="detail-section">
-          <span>Playbook capture</span>
-          <div className="capture-panel">
-            <label className="field">
-              <span>Target playbook</span>
-              <select
-                onChange={(event) => setSelectedPlaybookId(event.target.value)}
-                value={selectedPlaybookId}
-              >
-                {availablePlaybooks.map((playbook) => (
-                  <option key={playbook.name} value={playbook.name}>
-                    {playbook.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Target check</span>
-              <select
-                onChange={(event) => setSelectedCheckId(event.target.value)}
-                value={selectedCheckId}
-              >
-                <option value="">General note</option>
-                {availableChecks.map((check) => (
-                  <option key={check.id} value={check.id}>
-                    {check.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {suggestion.saved_playbook_id ? (
-              <p className="muted-copy">
-                Saved target: {suggestion.saved_playbook_id}
-                {suggestion.saved_playbook_check_id
-                  ? ` / ${suggestion.saved_playbook_check_id}`
-                  : " / general note"}
-              </p>
-            ) : null}
-            <div className="action-row">
-              <button
-                onClick={() =>
-                  void onSaveToPlaybook(suggestion, {
-                    playbook_id: selectedPlaybookId || null,
-                    playbook_check_id: selectedCheckId || null
-                  })
-                }
-                type="button"
-              >
-                Save capture
-              </button>
-              <button
-                className="ghost"
-                onClick={() => setIsSaveFormOpen(false)}
-                type="button"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="action-row">
-        <button
-          disabled={isApplyingAction || !suggestion.proposed_comment}
-          onClick={() => void onApplyComment(suggestion)}
-          type="button"
-        >
-          {isApplyingAction ? "Applying..." : "Apply comment"}
-        </button>
-        <button
-          disabled={isApplyingAction || !suggestion.proposed_redline}
-          onClick={() => void onApplyRedline(suggestion)}
-          type="button"
-        >
-          {isApplyingAction ? "Applying..." : "Apply redline"}
-        </button>
-      </div>
-      <div className="action-row">
-        <button
-          className="ghost"
-          disabled={isApplyingAction}
-          onClick={() => void onMarkReviewed(suggestion)}
-          type="button"
-        >
-          Mark reviewed
-        </button>
-        <button
-          className="ghost"
-          disabled={isApplyingAction}
-          onClick={() => setIsSaveFormOpen((current) => !current)}
-          type="button"
-        >
-          {isSaveFormOpen ? "Hide playbook form" : "Save to playbook"}
-        </button>
-        <button
-          className="ghost"
-          disabled={isApplyingAction}
-          onClick={() => void onDismiss(suggestion)}
-          type="button"
-        >
-          Dismiss
-        </button>
-      </div>
-    </article>
-  );
-}
-
 function Toggle({
-  label,
   checked,
+  label,
   onChange
 }: {
-  label: string;
   checked: boolean;
-  onChange?: () => void;
+  label: string;
+  onChange: () => void;
 }) {
   return (
     <button className="toggle-row" onClick={onChange} type="button">
       <span>{label}</span>
-      <span className={checked ? "toggle on" : "toggle"}>{checked ? "On" : "Off"}</span>
+      <strong>{checked ? "On" : "Off"}</strong>
     </button>
   );
 }
 
-async function extractErrorMessage(response: Response) {
-  try {
-    const payload = (await response.json()) as { detail?: string };
-    return payload.detail ?? `Request failed with status ${response.status}`;
-  } catch {
-    return `Request failed with status ${response.status}`;
+function build_sync_summary(session: StoredDocumentSession | null) {
+  if (!session?.last_synced_at) {
+    return {
+      title: "Not synced yet",
+      body: "Upload the current Word document or selection before running platform-backed tools."
+    };
   }
+  const versionId =
+    session.last_sync_scope === "full_document"
+      ? session.full_document_version?.id
+      : session.selection_version?.id;
+  return {
+    title: `${session.last_sync_scope === "full_document" ? "Full document" : "Selection"} synced`,
+    body: `${versionId ?? "snapshot"} at ${format_date(session.last_synced_at)}`
+  };
 }
 
-function resolveAnchorTargetQuote(suggestion: ReviewSuggestionRecord) {
-  return (
-    suggestion.latest_anchor?.quote?.trim() ||
-    suggestion.supporting_excerpt.trim() ||
-    suggestion.citations[0]?.quote?.trim() ||
-    ""
-  );
+function build_document_identity(selectionState: WordSelectionState | null) {
+  if (!selectionState) {
+    return "";
+  }
+  return `${selectionState.document_url ?? "local"}::${selectionState.document_name}`;
 }
 
-function buildAnchorActionLabel(suggestion: ReviewSuggestionRecord) {
-  if (suggestion.anchor_reconciliation_status === "updated") {
-    return "Locate revised clause";
-  }
-
-  if (suggestion.anchor_reconciliation_status === "drifted") {
-    return "Locate likely clause";
-  }
-
-  return "Locate anchor";
-}
-
-function buildReconciliationGuidance(status?: ReviewSuggestionRecord["anchor_reconciliation_status"]) {
-  if (status === "drifted") {
-    return "The stored anchor no longer looks close to the original clause. Locate the likely clause in Word before you rerun review or apply another edit.";
-  }
-
-  if (status === "updated") {
-    return "The clause text changed after application. Locate the revised clause if you want to inspect the latest language in Word.";
-  }
-
-  if (status === "unknown") {
-    return "Word did not return enough post-apply context to verify the anchor. Refresh the selection or locate the clause if you need to confirm the exact range.";
-  }
-
-  return null;
-}
-
-function buildSelectionAssessment(
-  selectionText: string,
-  suggestion: ReviewSuggestionRecord
-) {
-  const normalizedSelection = normalizeComparisonText(selectionText);
-  const normalizedTarget = normalizeComparisonText(resolveAnchorTargetQuote(suggestion));
-
-  if (!normalizedSelection || !normalizedTarget) {
+function read_document_session(identity: string): StoredDocumentSession | null {
+  if (!identity || typeof window === "undefined") {
     return null;
   }
-
-  if (normalizedSelection === normalizedTarget) {
-    return {
-      status: "stable" as const,
-      label: "Current selection is aligned",
-      detail: "The text currently selected in Word matches the stored clause closely."
-    };
+  const raw = window.localStorage.getItem(document_session_storage_key(identity));
+  if (!raw) {
+    return null;
   }
-
-  const overlap = calculateTokenOverlap(normalizedSelection, normalizedTarget);
-  if (overlap >= 0.8) {
-    return {
-      status: "stable" as const,
-      label: "Current selection is aligned",
-      detail: "The text currently selected in Word is still a close match for this suggestion."
-    };
+  try {
+    return JSON.parse(raw) as StoredDocumentSession;
+  } catch {
+    return null;
   }
-
-  if (overlap >= 0.4) {
-    return {
-      status: "updated" as const,
-      label: "Current selection is near the clause",
-      detail:
-        "The live selection overlaps with the stored anchor, but the wording has shifted. A rerun would use the updated text."
-    };
-  }
-
-  return {
-    status: "drifted" as const,
-    label: "Current selection has drifted",
-    detail:
-      "The live Word selection no longer looks like this suggestion's clause. Use Locate likely clause to jump back to the closest match."
-  };
 }
 
-function calculateTokenOverlap(left: string, right: string) {
-  const leftTokens = new Set(left.split(" ").filter(Boolean));
-  const rightTokens = new Set(right.split(" ").filter(Boolean));
-  if (leftTokens.size === 0 || rightTokens.size === 0) {
-    return 0;
+function persist_document_session(identity: string, session: StoredDocumentSession) {
+  if (!identity || typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(document_session_storage_key(identity), JSON.stringify(session));
+}
+
+function document_session_storage_key(identity: string) {
+  return `skua-word-document-session:${encodeURIComponent(identity)}`;
+}
+
+async function extract_error_message(response: Response) {
+  const content_type = response.headers.get("content-type") ?? "";
+  if (content_type.includes("application/json")) {
+    const payload = (await response.json()) as { detail?: string };
+    return payload.detail ?? "Request failed.";
+  }
+  return (await response.text()) || "Request failed.";
+}
+
+async function poll_platform_run<T extends { status: string; id: string }>(
+  path: string,
+  initial_status: string
+) {
+  if (!["queued", "running"].includes(initial_status)) {
+    const response = await fetch(path, {
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    return (await response.json()) as T;
   }
 
-  let overlap = 0;
-  leftTokens.forEach((token) => {
-    if (rightTokens.has(token)) {
-      overlap += 1;
+  let latest: T | null = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await sleep(500);
+    const response = await fetch(path, {
+      headers: {
+        Accept: "application/json"
+      },
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      throw new Error(await extract_error_message(response));
     }
-  });
-
-  return overlap / Math.max(leftTokens.size, rightTokens.size);
-}
-
-function normalizeComparisonText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function mapLivePlaybookToCard(playbook: PlaybookRecord) {
-  return {
-    id: playbook.name,
-    name: playbook.name,
-    version: playbook.version,
-    check_count: playbook.checks.length,
-    summary: playbook.description
-  };
-}
-
-function mapStandardsWeakClauseToView(clause: StandardsWeakClause): StandardsClauseView {
-  return {
-    clause_id: clause.clause_id,
-    title: clause.title,
-    action: describeStandardsFixAction(clause.fix_mode),
-    explanation: clause.explanation,
-    suggested_fix: clause.suggested_fix,
-    severity: clause.severity,
-    fix_mode: clause.fix_mode,
-    matched_excerpt: clause.matched_excerpt ?? null
-  };
-}
-
-function describeStandardsFixAction(fix_mode: StandardsFixMode) {
-  return fix_mode === "insert_after_selection" ? "Insert fallback" : "Replace selection";
-}
-
-function toggleValue(list: string[], nextValue: string) {
-  return list.includes(nextValue)
-    ? list.filter((value) => value !== nextValue)
-    : [...list, nextValue];
-}
-
-function sleep(duration_ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, duration_ms);
-  });
-}
-
-function resolveSuggestedPlaybookId(
-  playbooks: PlaybookRecord[],
-  suggestion: ReviewSuggestionRecord
-) {
-  if (suggestion.saved_playbook_id) {
-    return suggestion.saved_playbook_id;
+    latest = (await response.json()) as T;
+    if (!["queued", "running"].includes(latest.status)) {
+      return latest;
+    }
   }
-
-  return playbooks[0]?.name ?? "";
+  return latest as T;
 }
 
-function resolveSuggestedCheckId(
-  checks: PlaybookRecord["checks"],
-  suggestion: ReviewSuggestionRecord
-) {
-  if (suggestion.saved_playbook_check_id) {
-    return suggestion.saved_playbook_check_id;
-  }
+function split_candidate_segments(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .map((segment) => segment.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 200);
+}
 
-  const issueType = suggestion.issue_type.toLowerCase();
-  const matchingCheck = checks.find((check) => check.id.toLowerCase() === issueType);
-  return matchingCheck?.id ?? "";
+function normalize_document_filename(name: string) {
+  const normalized = name.trim() || "current-word-document.txt";
+  return normalized.endsWith(".txt") ? normalized : `${normalized}.txt`;
+}
+
+function build_selection_document_name(document_name: string) {
+  const normalized = normalize_document_filename(document_name).replace(/\.txt$/i, "");
+  return `${normalized}-selection.txt`;
+}
+
+function strip_suggested_prefix(text: string) {
+  return text.replace(/^Suggested language:\s*/i, "").trim();
+}
+
+async function hash_text(text: string) {
+  const data = new TextEncoder().encode(text);
+  const digest = await window.crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function format_date(value?: string | null) {
+  if (!value) {
+    return "Not yet synced";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+}
+
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }

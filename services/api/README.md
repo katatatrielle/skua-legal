@@ -7,6 +7,7 @@ Current responsibilities:
 - platform schema and Alembic migrations
 - email/password auth with default workspace provisioning
 - workspace memberships and provider configuration storage
+- provider policy resolution, BYOK validation, and encrypted secret storage
 - workspace and document persistence
 - source-file upload and parsing
 - local or S3-backed source/artifact storage
@@ -17,6 +18,7 @@ Current responsibilities:
 - review runs and suggestion actions
 - ask runs
 - revise runs
+- usage ledger, spend estimates, billing summaries, trust-center data, support-admin endpoints, and release-criteria metrics
 - playbook and citation loading
 - Redis/RQ-backed jobs plus local worker fallback
 - job and audit records
@@ -49,4 +51,4 @@ Notes:
 
 - The service still contains older workflow-oriented routes, but they are no longer the primary v1 product surface.
 - `SKUA_ALLOWED_ORIGINS` controls local CORS policy.
-- `services/api/.env.example` includes Postgres, Redis, queue, and object-storage settings.
+- `services/api/.env.example` includes Postgres, Redis, queue, object-storage, support-token, and retention settings.

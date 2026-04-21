@@ -20,6 +20,7 @@ from app.models import (
     PlatformReviewRunSummaryRecord,
 )
 from app.platform_db import platform_session
+from app.platform_memory import find_matching_clause_bank_entries, summarize_preference_signals
 from app.platform_models import (
     AuditEventPlatform,
     Citation,
@@ -29,6 +30,7 @@ from app.platform_models import (
     Playbook,
     ReviewRunPlatform,
 )
+from app.platform_provider import enforce_spend_controls, estimate_tokens, estimate_usage, record_usage_ledger, resolve_provider_runtime
 from app.queueing import get_queue
 from app.settings import ROOT_DIR
 
@@ -125,6 +127,7 @@ def create_platform_review_run(
     *,
     payload: PlatformReviewRunCreateRequest,
     request_id: str | None,
+    actor_user_id: str | None = None,
 ) -> PlatformReviewRunRecord:
     sync_platform_playbooks(session)
     version = session.execute(
@@ -141,6 +144,24 @@ def create_platform_review_run(
     if playbook is None:
         raise ValueError("Playbook not found.")
 
+    runtime = resolve_provider_runtime(session, workspace_id=payload.workspace_id, capability="review")
+    segment_rows = list(
+        session.execute(
+            select(DocumentSegment)
+            .where(DocumentSegment.document_version_id == version.id)
+            .order_by(DocumentSegment.ordinal.asc())
+        ).scalars()
+    )
+    estimate = estimate_usage(
+        session,
+        workspace_id=payload.workspace_id,
+        run_type="review",
+        runtime=runtime,
+        input_texts=[row.text for row in segment_rows] + [json.dumps(playbook.content_json or {})],
+        output_texts=["review findings summary"],
+    )
+    enforce_spend_controls(estimate)
+
     review_run = ReviewRunPlatform(
         id=f"prun-{uuid4().hex[:12]}",
         workspace_id=payload.workspace_id,
@@ -148,14 +169,15 @@ def create_platform_review_run(
         document_version_id=version.id,
         playbook_id=playbook.id,
         status="queued",
-        model_provider="deterministic",
-        model_name="playbook-rules-v1",
+        model_provider=runtime.provider,
+        model_name=runtime.model,
         request_id=request_id,
     )
     session.add(review_run)
     _insert_audit_event(
         session,
         workspace_id=payload.workspace_id,
+        actor_user_id=actor_user_id,
         entity_type="review_run",
         entity_id=review_run.id,
         action="review.created",
@@ -163,6 +185,9 @@ def create_platform_review_run(
         payload={
             "document_version_id": version.id,
             "playbook_id": playbook.id,
+            "estimated_cost": estimate.estimated_cost,
+            "provider": runtime.provider,
+            "model": runtime.model,
         },
     )
     session.flush()
@@ -249,6 +274,7 @@ def run_platform_review(session: Session, *, review_run_id: str, request_id: str
     _insert_audit_event(
         session,
         workspace_id=review_run.workspace_id,
+        actor_user_id=None,
         entity_type="review_run",
         entity_id=review_run.id,
         action="review.started",
@@ -295,10 +321,35 @@ def run_platform_review(session: Session, *, review_run_id: str, request_id: str
             comment_text=comment_text,
             redline_text=redline_text,
         )
+        clause_matches = find_matching_clause_bank_entries(
+            session,
+            workspace_id=review_run.workspace_id,
+            contract_type=playbook.contract_type,
+            issue_type=rule.issue_type,
+            represented_party=playbook.represented_party,
+            query=f"{rule.title} {rule.explanation_template} {source_segment.text}",
+            limit=3,
+        )
+        if clause_matches and actionable:
+            redline_text = clause_matches[0].text
+            proposed_action = build_proposed_action(
+                finding_type=finding_type,
+                comment_text=comment_text,
+                redline_text=redline_text,
+            )
+        preference_summary = summarize_preference_signals(
+            session,
+            workspace_id=review_run.workspace_id,
+            issue_type=rule.issue_type,
+            contract_type=playbook.contract_type,
+            represented_party=playbook.represented_party,
+        )
         rank_score = compute_rank_score(
             severity=rule.severity,
             priority=rule.priority,
             confidence=confidence,
+            clause_match_count=len(clause_matches),
+            preference_score=float(preference_summary["score"]),
         )
         metadata = {
             "rule_id": rule.id,
@@ -307,6 +358,11 @@ def run_platform_review(session: Session, *, review_run_id: str, request_id: str
             "source_segment_ids": [source_segment.id],
             "contract_type": playbook.contract_type,
             "represented_party": playbook.represented_party,
+            "preferred_clause_ids": [entry.id for entry in clause_matches],
+            "preferred_clause_titles": [entry.title for entry in clause_matches],
+            "preference_signal_counts": preference_summary["counts"],
+            "preference_signal_score": preference_summary["score"],
+            "draft_source": "clause_bank" if clause_matches and actionable else "playbook",
         }
 
         validate_review_payload(
@@ -328,7 +384,7 @@ def run_platform_review(session: Session, *, review_run_id: str, request_id: str
             explanation=explanation,
             proposed_action=proposed_action,
             comment_text=comment_text,
-            redline_text=redline_text if finding_type == "redline" else None,
+            redline_text=redline_text if actionable and redline_text else None,
             rank_score=rank_score,
             metadata_json=metadata,
         )
@@ -349,11 +405,32 @@ def run_platform_review(session: Session, *, review_run_id: str, request_id: str
     _insert_audit_event(
         session,
         workspace_id=review_run.workspace_id,
+        actor_user_id=None,
         entity_type="review_run",
         entity_id=review_run.id,
         action="review.completed",
         request_id=request_id,
         payload={"finding_count": _count_review_run_findings(session, review_run.id)},
+    )
+    usage_estimate = estimate_usage(
+        session,
+        workspace_id=review_run.workspace_id,
+        run_type="review",
+        runtime=resolve_provider_runtime(session, workspace_id=review_run.workspace_id, capability="review"),
+        input_texts=[segment.text for segment in segments],
+        output_texts=[finding.title for finding in session.execute(select(Finding).where(Finding.review_run_id == review_run.id)).scalars()],
+    )
+    record_usage_ledger(
+        session,
+        workspace_id=review_run.workspace_id,
+        run_type="review",
+        run_id=review_run.id,
+        provider=review_run.model_provider or "deterministic",
+        model=review_run.model_name or "playbook-rules-v1",
+        input_tokens=usage_estimate.estimated_input_tokens,
+        output_tokens=usage_estimate.estimated_output_tokens,
+        estimated_cost=usage_estimate.estimated_cost,
+        actual_cost=usage_estimate.estimated_cost,
     )
     session.flush()
 
@@ -586,8 +663,21 @@ def build_proposed_action(
     return None
 
 
-def compute_rank_score(*, severity: str, priority: int, confidence: float) -> float:
-    return SEVERITY_WEIGHTS.get(severity, 0.0) + float(priority * 10) + round(confidence * 10, 2)
+def compute_rank_score(
+    *,
+    severity: str,
+    priority: int,
+    confidence: float,
+    clause_match_count: int = 0,
+    preference_score: float = 0.0,
+) -> float:
+    return (
+        SEVERITY_WEIGHTS.get(severity, 0.0)
+        + float(priority * 10)
+        + round(confidence * 10, 2)
+        + float(clause_match_count * 15)
+        + round(preference_score, 2)
+    )
 
 
 def validate_review_payload(
@@ -646,6 +736,7 @@ def _mark_review_run_failed(
     _insert_audit_event(
         session,
         workspace_id=review_run.workspace_id,
+        actor_user_id=None,
         entity_type="review_run",
         entity_id=review_run.id,
         action="review.failed",
@@ -659,6 +750,7 @@ def _insert_audit_event(
     session: Session,
     *,
     workspace_id: str,
+    actor_user_id: str | None,
     entity_type: str,
     entity_id: str,
     action: str,
@@ -669,7 +761,7 @@ def _insert_audit_event(
         AuditEventPlatform(
             id=f"paudit-{uuid4().hex[:12]}",
             workspace_id=workspace_id,
-            actor_user_id=None,
+            actor_user_id=actor_user_id,
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,

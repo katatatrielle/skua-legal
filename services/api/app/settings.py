@@ -14,6 +14,7 @@ class Settings:
     database_url: str
     jwt_secret: str
     jwt_issuer: str
+    encryption_secret: str
     redis_url: str | None
     storage_backend: str
     s3_endpoint_url: str | None
@@ -25,6 +26,9 @@ class Settings:
     use_rq: bool
     dev_user_email: str
     dev_user_password: str
+    support_token: str | None
+    retention_days: int
+    feature_flags_json: str
 
 
 def get_settings() -> Settings:
@@ -36,6 +40,7 @@ def get_settings() -> Settings:
         ),
         jwt_secret=os.getenv("SKUA_JWT_SECRET", "skua-dev-secret-please-change-me-32"),
         jwt_issuer=os.getenv("SKUA_JWT_ISSUER", "skua-local"),
+        encryption_secret=os.getenv("SKUA_ENCRYPTION_SECRET", "skua-local-encryption-secret"),
         redis_url=os.getenv("SKUA_REDIS_URL"),
         storage_backend=os.getenv("SKUA_STORAGE_BACKEND", "local").strip().lower(),
         s3_endpoint_url=os.getenv("SKUA_S3_ENDPOINT_URL"),
@@ -47,4 +52,10 @@ def get_settings() -> Settings:
         use_rq=os.getenv("SKUA_QUEUE_BACKEND", "auto").strip().lower() != "sqlite-only",
         dev_user_email=os.getenv("SKUA_DEV_USER_EMAIL", "founder@skua.local"),
         dev_user_password=os.getenv("SKUA_DEV_USER_PASSWORD", "changeme123"),
+        support_token=os.getenv("SKUA_SUPPORT_TOKEN"),
+        retention_days=int(os.getenv("SKUA_RETENTION_DAYS", "90")),
+        feature_flags_json=os.getenv(
+            "SKUA_FEATURE_FLAGS_JSON",
+            '{"word_addin": true, "billing_controls": true, "trust_center": true, "support_admin": true}',
+        ),
     )

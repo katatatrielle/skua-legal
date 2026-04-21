@@ -787,6 +787,10 @@ class ProviderConfigRecord(SkuaModel):
     encrypted_secret: str | None = None
     model_policy: dict[str, object]
     is_active: bool
+    plan_type: str = "hosted"
+    validation_status: str = "valid"
+    has_secret: bool = False
+    masked_secret: str | None = None
     created_at: str
 
 
@@ -795,6 +799,215 @@ class PlatformWorkspaceRecord(SkuaModel):
     name: str
     created_at: str
     updated_at: str
+
+
+class PlatformMatterRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    name: str
+    represented_party: str | None = None
+    jurisdiction: str | None = None
+    status: str
+    created_at: str
+    updated_at: str
+
+
+class PlatformClauseBankEntryCreateRequest(SkuaModel):
+    workspace_id: str
+    contract_type: str
+    issue_type: str | None = None
+    represented_party: str | None = None
+    title: str
+    text: str
+    source: str
+
+
+class PlatformClauseBankEntryUpdateRequest(SkuaModel):
+    contract_type: str | None = None
+    issue_type: str | None = None
+    represented_party: str | None = None
+    title: str | None = None
+    text: str | None = None
+
+
+class PlatformClauseBankEntryRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    contract_type: str
+    issue_type: str | None = None
+    represented_party: str | None = None
+    title: str
+    text: str
+    source: str
+    created_at: str
+    updated_at: str
+
+
+class PlatformPreferenceSignalCreateRequest(SkuaModel):
+    workspace_id: str
+    entity_type: str
+    entity_id: str
+    signal_type: str
+    signal_value: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class PlatformPreferenceSignalRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    entity_type: str
+    entity_id: str
+    signal_type: str
+    signal_value: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+    created_at: str
+
+
+class PlatformSpendEstimateRequest(SkuaModel):
+    workspace_id: str
+    run_type: str
+    document_version_id: str | None = None
+    selection_text: str | None = None
+    question: str | None = None
+    instruction: str | None = None
+    playbook_id: str | None = None
+
+
+class PlatformSpendEstimateRecord(SkuaModel):
+    workspace_id: str
+    run_type: str
+    provider: str
+    model: str
+    plan_type: str
+    estimated_input_tokens: int
+    estimated_output_tokens: int
+    estimated_cost: float
+    monthly_actual_cost: float
+    monthly_projected_cost: float
+    warning_threshold: float
+    hard_cap: float
+    per_run_limit: float
+    warning: bool
+    blocked: bool
+    message: str
+
+
+class PlatformUsageLedgerRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    run_type: str
+    run_id: str
+    provider: str
+    model: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    estimated_cost: float | None = None
+    actual_cost: float | None = None
+    created_at: str
+
+
+class PlatformUsageSummaryRecord(SkuaModel):
+    workspace_id: str
+    month: str
+    plan_type: str
+    provider: str
+    model: str
+    run_count: int
+    input_tokens: int
+    output_tokens: int
+    estimated_cost: float
+    actual_cost: float
+    warning_threshold: float
+    hard_cap: float
+    per_run_limit: float
+    warning: bool
+    over_cap: bool
+    recent_runs: list[PlatformUsageLedgerRecord] = Field(default_factory=list)
+
+
+class PlatformTrustRecord(SkuaModel):
+    storage_summary: list[str] = Field(default_factory=list)
+    provider_visibility: list[str] = Field(default_factory=list)
+    training_policy: str
+    delete_behavior: list[str] = Field(default_factory=list)
+    byok_behavior: list[str] = Field(default_factory=list)
+    retention_policy: list[str] = Field(default_factory=list)
+
+
+class PlatformAuditEventRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    actor_user_id: str | None = None
+    entity_type: str
+    entity_id: str
+    action: str
+    request_id: str | None = None
+    payload: dict[str, object] = Field(default_factory=dict)
+    created_at: str
+
+
+class PlatformApplyEventCreateRequest(SkuaModel):
+    workspace_id: str
+    event_type: str
+    review_run_id: str | None = None
+    finding_id: str | None = None
+    revise_run_id: str | None = None
+    target_anchor: dict[str, object] = Field(default_factory=dict)
+
+
+class PlatformApplyEventRecord(SkuaModel):
+    id: str
+    workspace_id: str
+    review_run_id: str | None = None
+    finding_id: str | None = None
+    revise_run_id: str | None = None
+    event_type: str
+    target_anchor: dict[str, object] = Field(default_factory=dict)
+    created_at: str
+
+
+class PlatformFeatureFlagRecord(SkuaModel):
+    key: str
+    enabled: bool
+
+
+class PlatformSupportUserRecord(SkuaModel):
+    user_id: str
+    email: str
+    workspace_ids: list[str] = Field(default_factory=list)
+    provider_config_count: int = 0
+    recent_audit_actions: list[str] = Field(default_factory=list)
+    current_month_actual_cost: float = 0.0
+
+
+class PlatformAdminOverviewRecord(SkuaModel):
+    failed_job_count: int
+    parse_failure_count: int
+    usage_anomaly_count: int
+    feature_flags: list[PlatformFeatureFlagRecord] = Field(default_factory=list)
+    recent_failures: list[PlatformAuditEventRecord] = Field(default_factory=list)
+    support_lookup: PlatformSupportUserRecord | None = None
+
+
+class PlatformReleaseMetricRecord(SkuaModel):
+    key: str
+    label: str
+    value: float
+    unit: str
+    threshold: float
+    comparator: str
+    sample_size: int
+    minimum_sample_size: int = 1
+    passing: bool
+    detail: str
+
+
+class PlatformReleaseCriteriaRecord(SkuaModel):
+    workspace_id: str
+    evaluated_at: str
+    ready_for_pilot: bool
+    gating_failures: list[str] = Field(default_factory=list)
+    metrics: list[PlatformReleaseMetricRecord] = Field(default_factory=list)
 
 
 class PlatformDocumentVersionRecord(SkuaModel):

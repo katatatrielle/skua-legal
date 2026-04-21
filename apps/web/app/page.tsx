@@ -27,7 +27,11 @@ export default async function HomePage({
       queryRuns,
       workflowRuns,
       workflowTemplates,
-      initialDdReports
+      initialDdReports,
+      billingSummary,
+      trustProfile,
+      adminOverview,
+      releaseCriteria
     } = await load_review_workspace(
       workspaceParam
     );
@@ -53,6 +57,10 @@ export default async function HomePage({
           ddApiBaseUrl={apiBaseUrl}
           documentVersions={documentVersions}
           initialDdReports={initialDdReports}
+          billingSummary={billingSummary}
+          trustProfile={trustProfile}
+          adminOverview={adminOverview}
+          releaseCriteria={releaseCriteria}
           output={output}
           project={project}
           queryRuns={queryRuns}

@@ -5,6 +5,10 @@ import type {
   DdReportRecord,
   GeneratedOutput,
   IssueRecord,
+  PlatformAdminOverviewRecord,
+  PlatformReleaseCriteriaRecord,
+  PlatformTrustRecord,
+  PlatformUsageSummaryRecord,
   ProjectRecord,
   QueryRunRecord,
   WorkflowRunRecord,
@@ -44,7 +48,11 @@ export function ReviewWorkspace({
   queryRuns,
   workflowRuns,
   workflowTemplates,
-  initialDdReports
+  initialDdReports,
+  billingSummary,
+  trustProfile,
+  adminOverview,
+  releaseCriteria
 }: {
   ddApiBaseUrl: string;
   workspace: WorkspaceDetail;
@@ -57,6 +65,10 @@ export function ReviewWorkspace({
   workflowRuns: WorkflowRunRecord[];
   workflowTemplates: WorkflowTemplateRecord[];
   initialDdReports: DdReportRecord[];
+  billingSummary: PlatformUsageSummaryRecord | null;
+  trustProfile: PlatformTrustRecord | null;
+  adminOverview: PlatformAdminOverviewRecord | null;
+  releaseCriteria: PlatformReleaseCriteriaRecord | null;
 }) {
   const [severity, setSeverity] = useState<FilterValue>("all");
   const [status, setStatus] = useState<FilterValue>("all");
@@ -239,10 +251,155 @@ export function ReviewWorkspace({
               ))}
             </ul>
           </div>
+
+          <div className="stack">
+            <div>
+              <p className="section-label">Billing</p>
+              <h2>Usage and caps</h2>
+            </div>
+            {billingSummary ? (
+              <div className="memo-sections">
+                <article className="memo-card">
+                  <h3>{billingSummary.plan_type} plan</h3>
+                  <p>
+                    Current month spend ${billingSummary.actual_cost.toFixed(2)} across {billingSummary.run_count} run(s).
+                    Warning at ${billingSummary.warning_threshold.toFixed(2)} and hard cap at ${billingSummary.hard_cap.toFixed(2)}.
+                  </p>
+                </article>
+              </div>
+            ) : (
+              <p className="muted-text">Billing data is available when the support surface is running with a support token.</p>
+            )}
+          </div>
+
+          <div className="stack">
+            <div>
+              <p className="section-label">Trust</p>
+              <h2>Data posture</h2>
+            </div>
+            {trustProfile ? (
+              <div className="memo-sections">
+                <article className="memo-card">
+                  <h3>Stored data</h3>
+                  <p>{trustProfile.storage_summary.join(" ")}</p>
+                </article>
+                <article className="memo-card">
+                  <h3>Deletion and BYOK</h3>
+                  <p>{trustProfile.delete_behavior.join(" ")} {trustProfile.byok_behavior.join(" ")}</p>
+                </article>
+              </div>
+            ) : (
+              <p className="muted-text">Trust details are unavailable.</p>
+            )}
+          </div>
+
+          {adminOverview ? (
+            <div className="stack">
+              <div>
+                <p className="section-label">Admin</p>
+                <h2>Support view</h2>
+              </div>
+              <div className="memo-sections">
+                <article className="memo-card">
+                  <h3>Failures</h3>
+                  <p>
+                    {adminOverview.failed_job_count} failed run(s), {adminOverview.parse_failure_count} parse failure(s), and {adminOverview.usage_anomaly_count} usage anomaly/anomalies.
+                  </p>
+                </article>
+                {adminOverview.support_lookup ? (
+                  <article className="memo-card">
+                    <h3>User lookup</h3>
+                    <p>
+                      {adminOverview.support_lookup.email} has {adminOverview.support_lookup.workspace_ids.length} workspace(s), {adminOverview.support_lookup.provider_config_count} provider config(s), and ${adminOverview.support_lookup.current_month_actual_cost.toFixed(2)} in current-month spend.
+                    </p>
+                  </article>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {releaseCriteria ? (
+            <div className="stack">
+              <div>
+                <p className="section-label">Release Criteria</p>
+                <h2>{releaseCriteria.ready_for_pilot ? "Ready for pilot" : "Pilot gates open"}</h2>
+              </div>
+              <div className="memo-sections">
+                <article className="memo-card">
+                  <h3>Status</h3>
+                  <p>
+                    Evaluated at {new Date(releaseCriteria.evaluated_at).toLocaleString()} with {releaseCriteria.metrics.length} tracked release metric(s).
+                  </p>
+                  <p>
+                    {releaseCriteria.ready_for_pilot
+                      ? "All tracked release thresholds are currently passing."
+                      : `${releaseCriteria.gating_failures.length} gating issue(s) still need attention before pilot.`}
+                  </p>
+                </article>
+                {releaseCriteria.metrics.map((metric) => (
+                  <article className="memo-card" key={metric.key}>
+                    <h3>{metric.label}</h3>
+                    <p>
+                      {format_release_metric(metric)} against a {format_release_threshold(metric)} threshold.
+                    </p>
+                    <p>
+                      Sample size {metric.sample_size}/{metric.minimum_sample_size}. {metric.detail}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="stack">
+            <div>
+              <p className="section-label">Pilot Kit</p>
+              <h2>Onboarding bundle</h2>
+            </div>
+            <div className="memo-sections">
+              <article className="memo-card">
+                <h3>Starter docs</h3>
+                <p>
+                  Pilot sample matters and baseline contract text live under <code>docs/pilot/samples</code> for fast workspace setup and smoke testing.
+                </p>
+              </article>
+              <article className="memo-card">
+                <h3>Onboarding</h3>
+                <p>
+                  The pilot runbook, sample matters, and issue reporting flow are documented in <code>docs/pilot/pilot-kit.md</code> and <code>docs/pilot/issue-reporting.md</code>.
+                </p>
+              </article>
+              <article className="memo-card">
+                <h3>Computer-control tests</h3>
+                <p>
+                  The later Word-host validation pass is scripted in <code>docs/testing/phase10-computer-control-test-plan.md</code>.
+                </p>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
     </main>
   );
+}
+
+function format_release_metric(metric: PlatformReleaseCriteriaRecord["metrics"][number]) {
+  if (metric.unit === "percent") {
+    return `${(metric.value * 100).toFixed(1)}%`;
+  }
+  if (metric.unit === "usd") {
+    return `$${metric.value.toFixed(4)}`;
+  }
+  return String(metric.value);
+}
+
+function format_release_threshold(metric: PlatformReleaseCriteriaRecord["metrics"][number]) {
+  const value = metric.unit === "percent"
+    ? `${(metric.threshold * 100).toFixed(1)}%`
+    : metric.unit === "usd"
+      ? `$${metric.threshold.toFixed(2)}`
+      : String(metric.threshold);
+  return `${metric.comparator === "gte" ? "minimum" : "maximum"} ${value}`;
 }
 
 function QueryPanel({

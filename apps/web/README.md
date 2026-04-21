@@ -8,6 +8,7 @@ Current responsibilities:
 - support-side document upload
 - findings and citation inspection
 - lightweight memo and exception views
+- thin billing, trust, support-admin, and release-criteria visibility when a support token is configured
 
 Run:
 
@@ -21,3 +22,4 @@ Notes:
 - This is not the primary product surface.
 - The main workflow remains the Word add-in.
 - `DD_API_BASE_URL` still works as a fallback during the rename transition.
+- `SKUA_SUPPORT_TOKEN` enables the internal support/admin panels, workspace billing summary, and release dashboard.

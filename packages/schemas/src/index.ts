@@ -720,6 +720,269 @@ export interface DdReportEventRecord {
   created_at: string;
 }
 
+export interface AuthRegisterRequest {
+  email: string;
+  password: string;
+  full_name?: string | null;
+}
+
+export interface AuthLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  user: PlatformUserRecord;
+}
+
+export interface PlatformUserRecord {
+  id: string;
+  email: string;
+  full_name?: string | null;
+  is_active: boolean;
+  workspace_ids: string[];
+  created_at: string;
+}
+
+export interface ProviderConfigCreateRequest {
+  workspace_id: string;
+  provider_name: string;
+  encrypted_secret?: string | null;
+  model_policy: Record<string, unknown>;
+}
+
+export interface ProviderConfigRecord {
+  id: string;
+  workspace_id: string;
+  provider_name: string;
+  encrypted_secret?: string | null;
+  model_policy: Record<string, unknown>;
+  is_active: boolean;
+  plan_type: string;
+  validation_status: string;
+  has_secret: boolean;
+  masked_secret?: string | null;
+  created_at: string;
+}
+
+export interface PlatformWorkspaceRecord {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformMatterRecord {
+  id: string;
+  workspace_id: string;
+  name: string;
+  represented_party?: string | null;
+  jurisdiction?: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformClauseBankEntryCreateRequest {
+  workspace_id: string;
+  contract_type: string;
+  issue_type?: string | null;
+  represented_party?: string | null;
+  title: string;
+  text: string;
+  source: string;
+}
+
+export interface PlatformClauseBankEntryUpdateRequest {
+  contract_type?: string | null;
+  issue_type?: string | null;
+  represented_party?: string | null;
+  title?: string | null;
+  text?: string | null;
+}
+
+export interface PlatformClauseBankEntryRecord {
+  id: string;
+  workspace_id: string;
+  contract_type: string;
+  issue_type?: string | null;
+  represented_party?: string | null;
+  title: string;
+  text: string;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformPreferenceSignalCreateRequest {
+  workspace_id: string;
+  entity_type: string;
+  entity_id: string;
+  signal_type: string;
+  signal_value?: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface PlatformPreferenceSignalRecord {
+  id: string;
+  workspace_id: string;
+  entity_type: string;
+  entity_id: string;
+  signal_type: string;
+  signal_value?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PlatformSpendEstimateRequest {
+  workspace_id: string;
+  run_type: string;
+  document_version_id?: string | null;
+  selection_text?: string | null;
+  question?: string | null;
+  instruction?: string | null;
+  playbook_id?: string | null;
+}
+
+export interface PlatformSpendEstimateRecord {
+  workspace_id: string;
+  run_type: string;
+  provider: string;
+  model: string;
+  plan_type: string;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  estimated_cost: number;
+  monthly_actual_cost: number;
+  monthly_projected_cost: number;
+  warning_threshold: number;
+  hard_cap: number;
+  per_run_limit: number;
+  warning: boolean;
+  blocked: boolean;
+  message: string;
+}
+
+export interface PlatformUsageLedgerRecord {
+  id: string;
+  workspace_id: string;
+  run_type: string;
+  run_id: string;
+  provider: string;
+  model: string;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  created_at: string;
+}
+
+export interface PlatformUsageSummaryRecord {
+  workspace_id: string;
+  month: string;
+  plan_type: string;
+  provider: string;
+  model: string;
+  run_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost: number;
+  actual_cost: number;
+  warning_threshold: number;
+  hard_cap: number;
+  per_run_limit: number;
+  warning: boolean;
+  over_cap: boolean;
+  recent_runs: PlatformUsageLedgerRecord[];
+}
+
+export interface PlatformTrustRecord {
+  storage_summary: string[];
+  provider_visibility: string[];
+  training_policy: string;
+  delete_behavior: string[];
+  byok_behavior: string[];
+  retention_policy: string[];
+}
+
+export interface PlatformAuditEventRecord {
+  id: string;
+  workspace_id: string;
+  actor_user_id?: string | null;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  request_id?: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PlatformApplyEventCreateRequest {
+  workspace_id: string;
+  event_type: string;
+  review_run_id?: string | null;
+  finding_id?: string | null;
+  revise_run_id?: string | null;
+  target_anchor: Record<string, unknown>;
+}
+
+export interface PlatformApplyEventRecord {
+  id: string;
+  workspace_id: string;
+  review_run_id?: string | null;
+  finding_id?: string | null;
+  revise_run_id?: string | null;
+  event_type: string;
+  target_anchor: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PlatformFeatureFlagRecord {
+  key: string;
+  enabled: boolean;
+}
+
+export interface PlatformSupportUserRecord {
+  user_id: string;
+  email: string;
+  workspace_ids: string[];
+  provider_config_count: number;
+  recent_audit_actions: string[];
+  current_month_actual_cost: number;
+}
+
+export interface PlatformAdminOverviewRecord {
+  failed_job_count: number;
+  parse_failure_count: number;
+  usage_anomaly_count: number;
+  feature_flags: PlatformFeatureFlagRecord[];
+  recent_failures: PlatformAuditEventRecord[];
+  support_lookup?: PlatformSupportUserRecord | null;
+}
+
+export interface PlatformReleaseMetricRecord {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  threshold: number;
+  comparator: string;
+  sample_size: number;
+  minimum_sample_size: number;
+  passing: boolean;
+  detail: string;
+}
+
+export interface PlatformReleaseCriteriaRecord {
+  workspace_id: string;
+  evaluated_at: string;
+  ready_for_pilot: boolean;
+  gating_failures: string[];
+  metrics: PlatformReleaseMetricRecord[];
+}
+
 export interface PlatformDocumentVersionRecord {
   id: string;
   workspace_id: string;

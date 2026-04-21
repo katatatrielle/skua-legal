@@ -94,18 +94,21 @@ Useful worker modes:
 
 ### Word add-in
 
-- review the current selection or full document
+- sign in, restore session, and switch active workspaces inside Word
+- sync the current document or selection into the platform from Word
+- review the current selection or full document with citation-linked findings
 - ask cited questions against current document context
 - revise a selected clause into suggested language
-- save review guidance into clause-memory scaffolding
-- apply comments and tracked-change redlines in Word
-- relocate anchors after document drift
+- save preferred clause language into a workspace clause bank
+- apply comments, tracked-change redlines, fallback inserts, and host undo in Word
+- relocate anchors after document drift with best-match warnings
 
 ### Web app
 
 - create and choose workspaces
 - upload support-side PDF and DOCX files
 - inspect findings, citations, memo sections, and document state
+- view billing, trust, support-admin, and release-criteria status for a pilot workspace
 
 ### API and worker
 
@@ -120,7 +123,11 @@ Useful worker modes:
 - file-backed platform playbooks synced into the database at startup
 - deterministic review runs with stored findings, citations, ranking, and apply artifacts
 - platform ask runs with short cited answers and unsupported-claim refusals
-- platform revise runs with suggested-language labeling, playbook defaults, and clause-bank priority hooks
+- platform revise runs with suggested-language labeling, playbook defaults, automatic clause-bank retrieval, and clause-bank priority hooks
+- workspace clause-bank CRUD and preference-signal capture
+- review ranking that incorporates saved clauses and explicit preference signals
+- provider policy resolution, BYOK validation, encrypted provider-secret storage, usage ledgering, and spend-cap enforcement
+- billing summaries, spend estimates, trust-center data, audit trails, apply-event logging, support-admin overview routes, and release-criteria metrics
 - persisted review runs and suggestion actions
 - queued ask and revise runs
 - starter playbook loading
@@ -133,6 +140,8 @@ Preferred variables:
 
 - `SKUA_API_BASE_URL`
 - `SKUA_ALLOWED_ORIGINS`
+- `SKUA_SUPPORT_TOKEN`
+- `SKUA_ENCRYPTION_SECRET`
 
 Compatibility fallback:
 
@@ -154,6 +163,9 @@ Infrastructure helpers:
 ## Documentation
 
 - [Solo-first v1 spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/solo-first-word-native-contract-copilot-v1.md)
+- [Word add-in Phase 6 QA matrix](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/word-addin-phase6-qa-matrix.md)
+- [Pilot kit](/Users/katerinamcmullen/Documents/GitHub/skua/docs/pilot/pilot-kit.md)
+- [Computer-control test plan](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/phase10-computer-control-test-plan.md)
 - [Legacy engineering spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-engineering-spec.md)
 - [Legacy endpoint contracts](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-endpoint-contracts.md)
 - [Legacy add-in wireframes](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-word-addin-wireframes.md)
@@ -161,4 +173,4 @@ Infrastructure helpers:
 ## Notes
 
 - The repo still contains older query, workflow, and standards code paths behind the scenes. They are no longer the primary product story.
-- Phases 1 through 4 of the solo-first reset are now in place: repo boundaries, visible v1 scope, platform schema/migrations, auth, storage, queueing, ingest/parsing/anchors, and the first persisted review engine.
+- Phases 1 through 10 of the solo-first reset are now in place: repo boundaries, visible v1 scope, platform schema/migrations, auth, storage, queueing, ingest/parsing/anchors, review, ask, revise, Word apply flows, workspace clause memory, pricing controls, trust surface, support/admin basics, end-to-end pilot checks, and release gates.

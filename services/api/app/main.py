@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
+from sqlalchemy import select
 
 from app.models import (
     AuthLoginRequest,
@@ -32,18 +33,33 @@ from app.models import (
     QueuedJobRequest,
     PlaybookSavedNoteRecord,
     PlaybookRecord,
+    PlatformAdminOverviewRecord,
     PlatformAnchorRelocationRequest,
     PlatformAnchorRelocationResult,
+    PlatformApplyEventCreateRequest,
+    PlatformApplyEventRecord,
     PlatformAskRunCreateRequest,
     PlatformAskRunRecord,
+    PlatformAuditEventRecord,
+    PlatformClauseBankEntryCreateRequest,
+    PlatformClauseBankEntryRecord,
+    PlatformClauseBankEntryUpdateRequest,
     PlatformDocumentIngestRecord,
     PlatformDocumentSearchRequest,
     PlatformDocumentSearchResult,
+    PlatformMatterRecord,
     PlatformPlaybookRecord,
+    PlatformPreferenceSignalCreateRequest,
+    PlatformPreferenceSignalRecord,
+    PlatformReleaseCriteriaRecord,
     PlatformReviseRunCreateRequest,
     PlatformReviseRunRecord,
     PlatformReviewRunCreateRequest,
     PlatformReviewRunRecord,
+    PlatformSpendEstimateRecord,
+    PlatformSpendEstimateRequest,
+    PlatformTrustRecord,
+    PlatformUsageSummaryRecord,
     PlatformDocumentVersionDetailRecord,
     PlatformDocumentVersionRecord,
     PlatformWorkspaceRecord,
@@ -107,7 +123,26 @@ from app.platform_documents import (
     relocate_platform_anchor,
     search_platform_document,
 )
-from app.platform_models import Base, User
+from app.platform_memory import (
+    create_clause_bank_entry,
+    create_preference_signal,
+    delete_clause_bank_entry,
+    get_clause_bank_entry,
+    list_clause_bank_entries,
+    update_clause_bank_entry,
+)
+from app.platform_ops import (
+    build_admin_overview,
+    build_release_criteria,
+    build_trust_record,
+    create_apply_event,
+    delete_platform_document,
+    delete_platform_matter,
+    list_audit_events as list_platform_audit_events,
+    list_matters,
+)
+from app.platform_provider import estimate_usage, resolve_provider_runtime, summarize_usage_for_workspace
+from app.platform_models import Base, Document, Matter, User
 from app.platform_seed import seed_platform_dev_data
 from app.platform_service import (
     build_platform_user_record,
@@ -246,6 +281,23 @@ def decode_token_payload(token: str) -> dict:
     from app.platform_auth import decode_access_token
 
     return decode_access_token(token)
+
+
+def require_support_token(request: Request) -> None:
+    expected = SETTINGS.support_token
+    if not expected:
+        raise HTTPException(status_code=404, detail="Support admin is not enabled.")
+    provided = request.headers.get("x-skua-support-token")
+    if provided != expected:
+        raise HTTPException(status_code=403, detail="Support token required.")
+
+
+def require_support_or_workspace_access(request: Request, workspace_id: str) -> None:
+    if request.headers.get("x-skua-support-token"):
+        require_support_token(request)
+        return
+    require_current_user(request)
+    require_workspace_access(request, workspace_id)
 
 
 @app.get("/healthz", response_model=HealthResponse)
@@ -562,6 +614,17 @@ def get_platform_document_versions(workspace_id: str, request: Request) -> list[
         return list_platform_document_versions(session, workspace_id=workspace_id)
 
 
+@app.get(
+    "/api/v1/platform/workspaces/{workspace_id}/matters",
+    response_model=list[PlatformMatterRecord],
+)
+def get_platform_matters(workspace_id: str, request: Request) -> list[PlatformMatterRecord]:
+    require_current_user(request)
+    require_workspace_access(request, workspace_id)
+    with platform_session() as session:
+        return list_matters(session, workspace_id=workspace_id)
+
+
 @app.post(
     "/api/v1/platform/documents/upload",
     response_model=list[PlatformDocumentIngestRecord],
@@ -573,7 +636,7 @@ async def post_platform_document_upload(
     source_kind: str = Form(default="web_upload"),
     files: list[UploadFile] = File(...),
 ) -> list[PlatformDocumentIngestRecord]:
-    require_current_user(request)
+    current_user = require_current_user(request)
     require_workspace_access(request, workspace_id)
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required.")
@@ -591,6 +654,7 @@ async def post_platform_document_upload(
                     content=content,
                     source_kind=source_kind,
                     request_id=getattr(request.state, "request_id", None),
+                    actor_user_id=current_user.id,
                 )
             )
         return records
@@ -604,7 +668,7 @@ def post_platform_selection_ingest(
     payload: PlatformSelectionIngestRequest,
     request: Request,
 ) -> PlatformDocumentIngestRecord:
-    require_current_user(request)
+    current_user = require_current_user(request)
     require_workspace_access(request, payload.workspace_id)
     if not payload.selection_text.strip():
         raise HTTPException(status_code=400, detail="Selection text is required.")
@@ -613,6 +677,7 @@ def post_platform_selection_ingest(
             session,
             payload=payload,
             request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
         )
 
 
@@ -693,7 +758,7 @@ def post_platform_review_run(
     payload: PlatformReviewRunCreateRequest,
     request: Request,
 ) -> PlatformReviewRunRecord:
-    require_current_user(request)
+    current_user = require_current_user(request)
     require_workspace_access(request, payload.workspace_id)
     with platform_session() as session:
         try:
@@ -701,6 +766,7 @@ def post_platform_review_run(
                 session,
                 payload=payload,
                 request_id=getattr(request.state, "request_id", None),
+                actor_user_id=current_user.id,
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
@@ -748,7 +814,7 @@ def post_platform_ask_run(
     payload: PlatformAskRunCreateRequest,
     request: Request,
 ) -> PlatformAskRunRecord:
-    require_current_user(request)
+    current_user = require_current_user(request)
     require_workspace_access(request, payload.workspace_id)
     with platform_session() as session:
         try:
@@ -756,6 +822,7 @@ def post_platform_ask_run(
                 session,
                 payload=payload,
                 request_id=getattr(request.state, "request_id", None),
+                actor_user_id=current_user.id,
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
@@ -803,7 +870,7 @@ def post_platform_revise_run(
     payload: PlatformReviseRunCreateRequest,
     request: Request,
 ) -> PlatformReviseRunRecord:
-    require_current_user(request)
+    current_user = require_current_user(request)
     require_workspace_access(request, payload.workspace_id)
     with platform_session() as session:
         try:
@@ -811,6 +878,7 @@ def post_platform_revise_run(
                 session,
                 payload=payload,
                 request_id=getattr(request.state, "request_id", None),
+                actor_user_id=current_user.id,
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
@@ -850,6 +918,264 @@ def get_platform_document_revise_runs(
         return list_platform_revise_runs_for_document(session, document_version_id=document_version_id)
 
 
+@app.get(
+    "/api/v1/platform/clause-bank",
+    response_model=list[PlatformClauseBankEntryRecord],
+)
+def get_platform_clause_bank(
+    request: Request,
+    workspace_id: str = Query(...),
+    contract_type: str | None = Query(default=None),
+    issue_type: str | None = Query(default=None),
+    represented_party: str | None = Query(default=None),
+    search_query: str | None = Query(default=None),
+) -> list[PlatformClauseBankEntryRecord]:
+    require_current_user(request)
+    require_workspace_access(request, workspace_id)
+    with platform_session() as session:
+        return list_clause_bank_entries(
+            session,
+            workspace_id=workspace_id,
+            contract_type=contract_type,
+            issue_type=issue_type,
+            represented_party=represented_party,
+            search_query=search_query,
+        )
+
+
+@app.post(
+    "/api/v1/platform/clause-bank",
+    response_model=PlatformClauseBankEntryRecord,
+)
+def post_platform_clause_bank_entry(
+    payload: PlatformClauseBankEntryCreateRequest,
+    request: Request,
+) -> PlatformClauseBankEntryRecord:
+    current_user = require_current_user(request)
+    require_workspace_access(request, payload.workspace_id)
+    if not payload.title.strip() or not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Clause title and text are required.")
+    with platform_session() as session:
+        return create_clause_bank_entry(
+            session,
+            payload=payload,
+            request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
+        )
+
+
+@app.patch(
+    "/api/v1/platform/clause-bank/{entry_id}",
+    response_model=PlatformClauseBankEntryRecord,
+)
+def patch_platform_clause_bank_entry(
+    entry_id: str,
+    payload: PlatformClauseBankEntryUpdateRequest,
+    request: Request,
+) -> PlatformClauseBankEntryRecord:
+    current_user = require_current_user(request)
+    with platform_session() as session:
+        existing = get_clause_bank_entry(session, entry_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Clause bank entry not found.")
+        require_workspace_access(request, existing.workspace_id)
+        record = update_clause_bank_entry(
+            session,
+            entry_id=entry_id,
+            payload=payload,
+            request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
+        )
+        if record is None:
+            raise HTTPException(status_code=404, detail="Clause bank entry not found.")
+        return record
+
+
+@app.delete(
+    "/api/v1/platform/clause-bank/{entry_id}",
+    response_model=PlatformClauseBankEntryRecord,
+)
+def delete_platform_clause_bank_entry(
+    entry_id: str,
+    request: Request,
+) -> PlatformClauseBankEntryRecord:
+    current_user = require_current_user(request)
+    with platform_session() as session:
+        existing = get_clause_bank_entry(session, entry_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Clause bank entry not found.")
+        require_workspace_access(request, existing.workspace_id)
+        record = delete_clause_bank_entry(
+            session,
+            entry_id=entry_id,
+            request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
+        )
+        if record is None:
+            raise HTTPException(status_code=404, detail="Clause bank entry not found.")
+        return record
+
+
+@app.post(
+    "/api/v1/platform/preference-signals",
+    response_model=PlatformPreferenceSignalRecord,
+)
+def post_platform_preference_signal(
+    payload: PlatformPreferenceSignalCreateRequest,
+    request: Request,
+) -> PlatformPreferenceSignalRecord:
+    current_user = require_current_user(request)
+    require_workspace_access(request, payload.workspace_id)
+    with platform_session() as session:
+        return create_preference_signal(
+            session,
+            payload=payload,
+            request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
+        )
+
+
+@app.post(
+    "/api/v1/platform/spend-estimate",
+    response_model=PlatformSpendEstimateRecord,
+)
+def post_platform_spend_estimate(
+    payload: PlatformSpendEstimateRequest,
+    request: Request,
+) -> PlatformSpendEstimateRecord:
+    require_current_user(request)
+    require_workspace_access(request, payload.workspace_id)
+    with platform_session() as session:
+        runtime = resolve_provider_runtime(session, workspace_id=payload.workspace_id, capability=payload.run_type)
+        input_texts = [
+            payload.selection_text or "",
+            payload.question or "",
+            payload.instruction or "",
+            payload.playbook_id or "",
+        ]
+        return estimate_usage(
+            session,
+            workspace_id=payload.workspace_id,
+            run_type=payload.run_type,
+            runtime=runtime,
+            input_texts=input_texts,
+            output_texts=["estimated output"],
+        )
+
+
+@app.get(
+    "/api/v1/platform/workspaces/{workspace_id}/billing",
+    response_model=PlatformUsageSummaryRecord,
+)
+def get_platform_billing_summary(
+    workspace_id: str,
+    request: Request,
+) -> PlatformUsageSummaryRecord:
+    require_support_or_workspace_access(request, workspace_id)
+    with platform_session() as session:
+        return summarize_usage_for_workspace(session, workspace_id=workspace_id)
+
+
+@app.get(
+    "/api/v1/platform/workspaces/{workspace_id}/audit-events",
+    response_model=list[PlatformAuditEventRecord],
+)
+def get_platform_workspace_audit_events(
+    workspace_id: str,
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[PlatformAuditEventRecord]:
+    require_current_user(request)
+    require_workspace_access(request, workspace_id)
+    with platform_session() as session:
+        return list_platform_audit_events(session, workspace_id=workspace_id, limit=limit)
+
+
+@app.get(
+    "/api/v1/platform/workspaces/{workspace_id}/release-criteria",
+    response_model=PlatformReleaseCriteriaRecord,
+)
+def get_platform_release_criteria(
+    workspace_id: str,
+    request: Request,
+) -> PlatformReleaseCriteriaRecord:
+    require_support_or_workspace_access(request, workspace_id)
+    with platform_session() as session:
+        return build_release_criteria(session, workspace_id=workspace_id)
+
+
+@app.post(
+    "/api/v1/platform/apply-events",
+    response_model=PlatformApplyEventRecord,
+)
+def post_platform_apply_event(
+    payload: PlatformApplyEventCreateRequest,
+    request: Request,
+) -> PlatformApplyEventRecord:
+    current_user = require_current_user(request)
+    require_workspace_access(request, payload.workspace_id)
+    with platform_session() as session:
+        return create_apply_event(
+            session,
+            payload=payload,
+            actor_user_id=current_user.id,
+            request_id=getattr(request.state, "request_id", None),
+        )
+
+
+@app.delete("/api/v1/platform/documents/{document_id}", response_class=PlainTextResponse)
+def delete_platform_document_route(document_id: str, request: Request) -> PlainTextResponse:
+    current_user = require_current_user(request)
+    with platform_session() as session:
+        document = session.execute(select(Document).where(Document.id == document_id)).scalar_one_or_none()
+        if document is None:
+            raise HTTPException(status_code=404, detail="Document not found.")
+        require_workspace_access(request, document.workspace_id)
+        deleted = delete_platform_document(
+            session,
+            document_id=document_id,
+            actor_user_id=current_user.id,
+            request_id=getattr(request.state, "request_id", None),
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Document not found.")
+        return PlainTextResponse("deleted")
+
+
+@app.delete("/api/v1/platform/matters/{matter_id}", response_class=PlainTextResponse)
+def delete_platform_matter_route(matter_id: str, request: Request) -> PlainTextResponse:
+    current_user = require_current_user(request)
+    with platform_session() as session:
+        matter = session.execute(select(Matter).where(Matter.id == matter_id)).scalar_one_or_none()
+        if matter is None:
+            raise HTTPException(status_code=404, detail="Matter not found.")
+        require_workspace_access(request, matter.workspace_id)
+        deleted = delete_platform_matter(
+            session,
+            matter_id=matter_id,
+            actor_user_id=current_user.id,
+            request_id=getattr(request.state, "request_id", None),
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Matter not found.")
+        return PlainTextResponse("deleted")
+
+
+@app.get("/api/v1/platform/trust", response_model=PlatformTrustRecord)
+def get_platform_trust() -> PlatformTrustRecord:
+    return build_trust_record()
+
+
+@app.get("/api/v1/platform/admin/overview", response_model=PlatformAdminOverviewRecord)
+def get_platform_admin_overview(
+    request: Request,
+    user_email: str | None = Query(default=None),
+) -> PlatformAdminOverviewRecord:
+    require_support_token(request)
+    with platform_session() as session:
+        return build_admin_overview(session, support_email=user_email)
+
+
 @app.get("/api/v1/provider-configs", response_model=list[ProviderConfigRecord])
 def get_provider_configs(request: Request, workspace_id: str = Query(...)) -> list[ProviderConfigRecord]:
     require_current_user(request)
@@ -863,21 +1189,35 @@ def post_provider_config(
     payload: ProviderConfigCreateRequest,
     request: Request,
 ) -> ProviderConfigRecord:
-    require_current_user(request)
+    current_user = require_current_user(request)
     require_workspace_access(request, payload.workspace_id)
     with platform_session() as session:
-        return create_provider_config(
+        record = create_provider_config(
             session,
             workspace_id=payload.workspace_id,
             provider_name=payload.provider_name,
             encrypted_secret=payload.encrypted_secret,
             model_policy=payload.model_policy,
         )
+        create_preference_signal(
+            session,
+            payload=PlatformPreferenceSignalCreateRequest(
+                workspace_id=payload.workspace_id,
+                entity_type="provider_config",
+                entity_id=record.id,
+                signal_type="provider_config_saved",
+                signal_value=record.provider_name,
+                metadata={"plan_type": record.plan_type},
+            ),
+            request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
+        )
+        return record
 
 
 @app.delete("/api/v1/provider-configs/{config_id}", response_model=ProviderConfigRecord)
 def delete_provider_config_route(config_id: str, request: Request) -> ProviderConfigRecord:
-    require_current_user(request)
+    current_user = require_current_user(request)
     with platform_session() as session:
         existing = get_provider_config(session, config_id)
         if existing is None:
@@ -886,6 +1226,19 @@ def delete_provider_config_route(config_id: str, request: Request) -> ProviderCo
         record = delete_provider_config(session, config_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Provider config not found.")
+        create_preference_signal(
+            session,
+            payload=PlatformPreferenceSignalCreateRequest(
+                workspace_id=record.workspace_id,
+                entity_type="provider_config",
+                entity_id=record.id,
+                signal_type="provider_config_deleted",
+                signal_value=record.provider_name,
+                metadata={"plan_type": record.plan_type},
+            ),
+            request_id=getattr(request.state, "request_id", None),
+            actor_user_id=current_user.id,
+        )
         return record
 
 

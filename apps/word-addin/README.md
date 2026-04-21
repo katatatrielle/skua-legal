@@ -12,13 +12,19 @@ Current responsibilities:
 
 Current live behaviors:
 
-- read the current Word selection and document body
-- run persisted review requests
-- apply comments and tracked-change redlines
-- run persisted Ask requests with citations
-- run persisted Revise requests for suggested language
-- save review guidance into clause-memory scaffolding
-- recover anchors after document edits
+- sign in and restore an add-in session with the platform auth endpoints
+- choose the active workspace inside Word
+- sync the current Word document or selection into the platform
+- run platform review requests against the synced scope
+- apply comments, tracked-change redlines, fallback inserts, and host undo
+- run platform Ask requests with cited answers or unsupported-answer refusal
+- run platform Revise requests for suggested language with citations
+- create, edit, delete, and apply workspace clause-bank entries
+- save preferred language from review and revise back into the workspace clause bank
+- emit preference signals when findings are applied, dismissed, or reused
+- show workspace billing status, recent spend, and spend-cap posture inside Settings
+- show trust-center details and let users delete synced platform documents and matters
+- recover anchors after document edits with best-match warnings
 
 Run:
 
@@ -33,5 +39,6 @@ Manifest:
 
 Notes:
 
-- The add-in still reuses some older draft and playbook implementation paths internally while the visible UI has been narrowed to the v1 contract.
-- The next slice should promote saved-clause CRUD and settings surfaces into first-class backend features.
+- Saved clauses are now backed by the platform clause-bank API and scoped to the active workspace.
+- Manual host QA expectations and known bounds are documented in `docs/testing/word-addin-phase6-qa-matrix.md`.
+- The full pilot-era computer-control runbook is documented in `docs/testing/phase10-computer-control-test-plan.md`.
