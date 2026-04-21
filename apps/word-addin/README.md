@@ -1,87 +1,44 @@
-# Word Add-in App
+# Word Add-in
 
-This app is the main product surface for the solo-first Skua direction.
+This app is the primary Skua v1 surface.
 
-Target role in the product:
+Current responsibilities:
 
-- review a full document or current selection
-- ask cited questions about the agreement
-- revise clause language with source grounding
-- apply comments or tracked changes inside Word
-- save and reuse preferred fallback language
+- Review
+- Ask
+- Revise
+- Saved Clauses
+- Settings
 
-Current prototype responsibilities:
+Current live behaviors:
 
-- render a task-pane-sized product shell
-- prove the Review, Ask, Draft, Playbooks, and Standards tab structure
-- exercise the shared review-run and suggestion contracts from `@skua/schemas`
-- give the repo a realistic UI target before deeper Office.js and API wiring land
-- expose a sideloadable Word manifest plus command assets for local add-in testing
+- sign in and restore an add-in session with the platform auth endpoints
+- choose the active workspace inside Word
+- sync the current Word document or selection into the platform
+- run platform review requests against the synced scope
+- apply comments, tracked-change redlines, fallback inserts, and host undo
+- run platform Ask requests with cited answers or unsupported-answer refusal
+- run platform Revise requests for suggested language with citations
+- create, edit, delete, and apply workspace clause-bank entries
+- save preferred language from review and revise back into the workspace clause bank
+- emit preference signals when findings are applied, dismissed, or reused
+- show workspace billing status, recent spend, and spend-cap posture inside Settings
+- show trust-center details and let users delete synced platform documents and matters
+- recover anchors after document edits with best-match warnings
 
-## Run
+Run:
 
 ```bash
 cd /path/to/skua
-npm run dev:word-addin
+SKUA_API_BASE_URL=http://127.0.0.1:8000 npm run dev:word-addin
 ```
 
-The scaffold runs on `http://127.0.0.1:3001`.
-
-Because the dev script uses `next dev --experimental-https`, the add-in origin is also available at `https://localhost:3001`, which is the URL used by the local manifest.
-
-## Manifest
-
-The local add-in only manifest lives at:
+Manifest:
 
 - `apps/word-addin/public/manifest.word.xml`
 
-The manifest currently:
+Notes:
 
-- targets Word only
-- uses a shared runtime
-- adds Home-tab ribbon buttons for Open Pane, Review Selection, Review Document, Ask, Draft from Library, Refresh Anchors, and Export to Project
-- routes those buttons to the task pane with tab query parameters
-
-The command labels and query params still reflect earlier prototype naming. Those runtime names remain in place for compatibility during the product pivot.
-
-## Current Office integration
-
-The thin Office adapter lives at:
-
-- `apps/word-addin/lib/office.ts`
-
-Current live host behaviors:
-
-- detect whether the pane is running inside Word
-- read the current selection text and OOXML
-- read the current document body text for full-document review scope
-- read current change-tracking mode
-- insert a comment at the current selection
-- replace the current selection while temporarily enabling tracked changes if needed
-- search the current document for a stored clause excerpt and re-select the closest match in Word
-
-Current live review behaviors:
-
-- post a real review run to the DD API through same-origin Next.js proxy routes
-- persist the run and suggestions in the DD API's local SQLite database
-- render returned review suggestions in the Review tab instead of using mock review cards
-- persist comment/redline application receipts, dismissals, and reviewed states back to the DD API
-- capture post-apply selection context from Word and send it with suggestion application receipts
-- help reviewers recover from anchor drift by locating the latest clause text in the document
-- save review suggestions into persisted playbook-note memory and surface those notes in the Playbooks tab
-- let reviewers choose the target playbook and target check before saving a suggestion note
-- export review summaries back to the local project store
-- post real Ask runs to the DD API and poll for worker-completed cited answers
-- post real Draft runs to the DD API and poll for worker-completed clause results plus library matches
-- use richer local state for Playbooks so it aligns more closely with the wireframe docs
-
-## Transition Notes
-
-- `Draft` is the current runtime name for what the product direction increasingly treats as `Revise`.
-- Clause-bank and saved-fallback behavior is still partial; parts of that loop currently land in playbook-note memory and library search rather than a dedicated clause-bank surface.
-- Standards and deeper playbook authoring remain prototype-level support flows, not a complete target-state UX.
-
-## Notes
-
-- Review, Ask, and Draft are now API-backed; Standards and most Playbooks authoring actions are still local/mock-backed.
-- The next implementation pass should connect Standards and playbook editing to first-class backend runs instead of local UI state.
+- Saved clauses are now backed by the platform clause-bank API and scoped to the active workspace.
+- Manual host QA expectations and known bounds are documented in `docs/testing/word-addin-phase6-qa-matrix.md`.
+- The full pilot-era computer-control runbook is documented in `docs/testing/phase10-computer-control-test-plan.md`.

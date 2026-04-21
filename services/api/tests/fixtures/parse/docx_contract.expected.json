@@ -1,0 +1,5 @@
+{
+  "parser_name": "docx",
+  "segment_types": ["heading", "clause", "paragraph", "table"],
+  "page_numbers": [1, 1, 1, 1]
+}

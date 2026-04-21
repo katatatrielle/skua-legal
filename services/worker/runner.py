@@ -5,14 +5,21 @@ import sys
 import time
 from pathlib import Path
 
+from redis import Redis
+from rq import Connection, Worker
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-DD_API_DIR = ROOT_DIR / "services" / "dd-api"
+API_DIR = ROOT_DIR / "services" / "api"
 
-if str(DD_API_DIR) not in sys.path:
-    sys.path.insert(0, str(DD_API_DIR))
+if str(API_DIR) not in sys.path:
+    sys.path.insert(0, str(API_DIR))
 
+from app.queueing import QUEUE_NAME  # noqa: E402
 from app.repository import process_next_job  # noqa: E402
+from app.settings import get_settings  # noqa: E402
+
+
+SETTINGS = get_settings()
 
 
 def run_worker(
@@ -22,6 +29,13 @@ def run_worker(
     poll_seconds: float,
     max_jobs: int | None,
 ) -> int:
+    if SETTINGS.redis_url and SETTINGS.use_rq:
+        redis_connection = Redis.from_url(SETTINGS.redis_url)
+        with Connection(redis_connection):
+            worker = Worker([QUEUE_NAME], name=worker_name)
+            worker.work(burst=once, max_jobs=max_jobs)
+        return 0
+
     processed_jobs = 0
     while True:
         job = process_next_job(worker_name)
@@ -41,7 +55,7 @@ def run_worker(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Skua background worker for queued ingest and export jobs."
+        description="Skua background worker for queued parse, review, ask, revise, and cleanup jobs."
     )
     parser.add_argument(
         "--worker-name",

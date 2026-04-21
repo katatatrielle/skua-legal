@@ -1,5 +1,121 @@
 # Progress Log
 
+## Session: 2026-04-20
+
+### Phase 34: Phase 3 Ingestion, Parsing, and Anchors
+- **Status:** complete
+- Actions taken:
+  - Added a platform-native document pipeline in `services/api/app/platform_documents.py` instead of extending the legacy SQLite upload path again.
+  - Added platform ingest routes for file upload and Word selection upload, plus platform document-version listing/detail, segment search, and anchor relocation endpoints.
+  - Added richer DOCX parsing that preserves ordered paragraphs and tables, captures heading segments, records structural metadata, and emits segment-level anchors.
+  - Added PDF parsing that keeps page/block order, emits paragraph-like segments, and tags low-confidence regions through segment metadata.
+  - Added anchor payloads with `document_version_id`, `ordinal`, `quote`, `prefix`, `suffix`, `page`, confidence, and deterministic embedding tokens.
+  - Added hybrid retrieval over parsed segments using lexical overlap plus stored embedding-token similarity, with lexical fallback always available.
+  - Added parse QA fixtures and tests covering DOCX parsing, PDF parsing, platform upload/search, and anchor relocation.
+  - Extended shared Python and TypeScript contracts plus the SDK for the new platform document APIs.
+- Verification:
+  - `python3 -m compileall services/api/app`
+  - `npm run test:api`
+  - `npm run typecheck:web`
+  - `npm run typecheck:word-addin`
+  - `npm test`
+- Files created/modified:
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_parsing.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_documents.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/object_storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/tests/test_platform_phase3.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/tests/fixtures/parse/docx_contract.expected.json`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/tests/fixtures/parse/pdf_contract.expected.json`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
+
+### Phase 33: Phase 2 Platform Foundation
+- **Status:** complete
+- Actions taken:
+  - Added a Postgres-ready platform layer in `services/api` with centralized settings, SQLAlchemy models, Alembic migrations, seed data, and a one-command `scripts/platform-init.sh`.
+  - Added auth endpoints for register, login, and current-user lookup, then made registration provision a default workspace so the support surface and API share the same initial workspace model.
+  - Added workspace-scoped provider config endpoints plus membership-based access checks across workspace and project reads.
+  - Added local or S3-backed source/artifact storage helpers, persisted generated export artifacts into the artifact namespace, and cleaned them up on project deletion.
+  - Added Redis/RQ queue wiring to the API and worker, plus structured request logging with request IDs.
+  - Added platform infra assets: `infra/docker-compose.platform.yml`, `infra/docker-compose.staging.yml`, `infra/staging.env.example`, and `.github/workflows/ci.yml`.
+  - Added API tests for auth/default workspace provisioning, workspace scoping, artifact cleanup, and updated the existing upload cleanup test for the object-storage path.
+  - Updated root scripts so `npm test` now runs web typecheck, add-in typecheck, API pytest, and API compilation.
+- Verification:
+  - `./scripts/platform-init.sh`
+  - `npm run typecheck:web`
+  - `npm run typecheck:word-addin`
+  - `npm run test:api`
+  - `npm test`
+  - `python3 -m compileall services/api/app services/worker/runner.py`
+- Files created/modified:
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/settings.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_db.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_auth.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_seed.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/platform_service.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/object_storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/queueing.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/observability.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/rq_jobs.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/alembic.ini`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/alembic/env.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/alembic/versions/20260420_000001_platform_foundation.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/pyproject.toml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/.env.example`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/tests/test_platform_foundation.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/tests/test_repository_upload_cleanup.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/worker/runner.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/infra/docker-compose.platform.yml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/infra/docker-compose.staging.yml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/infra/staging.env.example`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/.github/workflows/ci.yml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/scripts/platform-init.sh`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/scripts/bootstrap-local.sh`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/package.json`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
+
+### Phase 32: Solo-First Repo Reset
+- **Status:** complete
+- Actions taken:
+  - Renamed the web review surface from `apps/review` to `apps/web`.
+  - Renamed the backend service from `services/dd-api` to `services/api`.
+  - Removed the unused `apps/chat` surface from the active repo shape.
+  - Reworked root scripts to prefer `dev:web` and `dev:api` while keeping compatibility aliases for the older names.
+  - Rewrote the root README plus app and service READMEs around the Word-first contract copilot story.
+  - Added `.env.example` files for the root, web app, Word add-in, and API service.
+  - Added `scripts/bootstrap-local.sh` for clean local setup.
+  - Narrowed the visible Word add-in tabs to Review, Ask, Revise, Saved Clauses, and Settings.
+  - Hid the web app's query and workflow panels from the main support surface.
+  - Switched client configuration to prefer `SKUA_API_BASE_URL` with `DD_API_BASE_URL` as a fallback.
+  - Added an SDK alias `create_api_client` while preserving `create_dd_api_client`.
+  - Verified `python3 -m compileall services/api/app`, `npm run typecheck:web`, `npm run typecheck:word-addin`, and `npm test`.
+- Files created/modified:
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/package.json`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/.env.example`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/scripts/bootstrap-local.sh`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/*`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/*`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/*`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/worker/*`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
+
 ## Session: 2026-04-19
 
 ### Phase 26: Editable Reports and Artifact Export
@@ -13,18 +129,18 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/globals.css`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/workflow-runs/[workflowRunId]/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/workflow-runs/[workflowRunId]/rerun/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/dd-reports/[ddReportId]/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/dd-reports/[ddReportId]/export/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/globals.css`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/workflow-runs/[workflowRunId]/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/workflow-runs/[workflowRunId]/rerun/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/dd-reports/[ddReportId]/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/dd-reports/[ddReportId]/export/route.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -45,20 +161,20 @@
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows/commercial-dd-report.yaml`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/lib/api.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/page.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/globals.css`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/workflow-runs/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/workflow-runs/[workflowRunId]/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/dd-reports/[ddReportId]/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/lib/api.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/page.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/globals.css`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/workflow-runs/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/workflow-runs/[workflowRunId]/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/dd-reports/[ddReportId]/route.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -75,20 +191,20 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/lib/api.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/page.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/globals.css`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/query-runs/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/query-runs/[queryRunId]/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/query-runs/[queryRunId]/export/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/lib/api.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/page.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/globals.css`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/query-runs/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/query-runs/[queryRunId]/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/query-runs/[queryRunId]/export/route.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -103,11 +219,11 @@
   - Hardened both Next app workspaces so `typecheck` and `lint` materialize `.next/types` via `next build` before running `tsc`.
   - Re-ran compile/build/tests and a focused smoke test that uploaded generated DOCX files, exercised filtered library search, and verified Draft used clause-backed provenance.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/package.json`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/package.json`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/package.json`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
@@ -145,8 +261,8 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/package.json`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/tsconfig.base.json`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/*`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/*`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/*`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/*`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/playbooks/*`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/prompts/*`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/*`
@@ -156,14 +272,14 @@
 ### Phase 4: Testing & Verification
 - **Status:** complete
 - Actions taken:
-  - Compiled the Python API package with `python3 -m compileall services/dd-api/app`.
+  - Compiled the Python API package with `python3 -m compileall services/api/app`.
   - Installed JavaScript dependencies with `npm install`.
   - Ran `npm run typecheck:review`, `npm run build:review`, and `npm test`.
-  - Created a local API virtualenv, installed `services/dd-api` with dev extras, and verified the main endpoints with FastAPI `TestClient`.
+  - Created a local API virtualenv, installed `services/api` with dev extras, and verified the main endpoints with FastAPI `TestClient`.
   - Fixed npm workspace protocol incompatibility, missing `httpx` for tests, and YAML version-type validation.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/package-lock.json` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/pyproject.toml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/pyproject.toml`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/playbooks/*.yaml`
 
 ### Phase 6: Real Upload Vertical Slice
@@ -176,23 +292,23 @@
   - Added review-app controls for workspace selection, creation, and multi-file upload.
   - Updated the root and workspace documentation to describe the real upload flow.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/parsing.py` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/analyzer.py` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/pyproject.toml`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/page.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/workspace-controls.tsx` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/globals.css`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/lib/api.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py` (created)
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/parsing.py` (created)
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/analyzer.py` (created)
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/pyproject.toml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/page.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/workspace-controls.tsx` (created)
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/globals.css`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/lib/api.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
 
 ### Phase 7: Verification & Delivery
 - **Status:** in_progress
@@ -295,12 +411,12 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/analyzer.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/analyzer.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/review-runs/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/review-runs/[reviewRunId]/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
@@ -324,11 +440,11 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
 
 ### Phase 13: Suggestion Event History
 - **Status:** complete
@@ -339,14 +455,14 @@
   - Verified Python compilation, add-in typecheck/build, review build, root tests, and a FastAPI smoke test for reconciliation state.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/lib/office.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/globals.css`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
@@ -379,11 +495,11 @@
   - Extended shared schema and SDK packages for the new canonical records and routes.
   - Verified Python compilation, both Next.js builds, root tests, and a FastAPI smoke test covering project creation, canonical upload, document fetch, ingest, and audit log retrieval.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
@@ -400,11 +516,11 @@
   - Added a local worker runner in `services/worker/runner.py` that claims queued jobs from SQLite and processes supported job types.
   - Verified queue transitions end to end with a FastAPI smoke test that queued ingest and review-export jobs, ran the worker, and observed both jobs complete successfully.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/services/worker/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/services/worker/runner.py` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
@@ -423,11 +539,11 @@
   - Added same-origin Next routes for Ask in the Word add-in and replaced the local Ask mock flow with a real queued run plus short polling loop.
   - Verified Python compilation, Word add-in typecheck/build, review build, root tests, and a focused Ask smoke test that queued an Ask run and observed worker completion.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/services/worker/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
@@ -449,11 +565,11 @@
   - Added same-origin Next routes for Draft in the Word add-in and replaced the local Draft-only flow with a real queued run plus short polling loop.
   - Verified Python compilation, Word add-in typecheck/build, a focused Draft smoke test, and then re-ran the normal repo checks.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/services/worker/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
@@ -475,15 +591,15 @@
   - Updated Draft generation so it prefers real library search results when available instead of only falling back to static heuristic matches.
   - Verified Python compilation, Word add-in typecheck/build, a focused library-search smoke test, a Draft retrieval smoke test, and then re-ran the normal repo checks.
 - Files created/modified:
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/library/search/route.ts` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/package.json`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/package.json`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/package.json`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
@@ -501,17 +617,17 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/playbooks/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/playbooks/saved-notes/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/review-suggestions/[suggestionId]/save-to-playbook/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/globals.css`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
@@ -527,13 +643,13 @@
   - Re-ran Python compilation, add-in typecheck/build, root tests, and a FastAPI smoke test verifying explicit `assignment` check targeting.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/globals.css`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
@@ -551,10 +667,10 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/page.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/globals.css`
@@ -563,7 +679,7 @@
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/types/office.d.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/public/manifest.word.xml`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
@@ -580,15 +696,15 @@
   - Re-ran compile, typecheck, build, root tests, and a focused artifact-history smoke test.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/pyproject.toml`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/dd-reports/[ddReportId]/export/route.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/api/workflow-runs/[workflowRunId]/export/route.ts` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/globals.css`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/pyproject.toml`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/dd-reports/[ddReportId]/export/route.ts`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/api/workflow-runs/[workflowRunId]/export/route.ts` (created)
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/globals.css`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -604,13 +720,13 @@
   - Re-ran compile, typecheck, root tests, standalone builds, and a focused structured-export smoke test.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -625,12 +741,12 @@
   - Re-ran compile, typecheck, root tests, standalone builds, and a focused template-driven export smoke test.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows/commercial-dd-report.yaml`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -648,21 +764,21 @@
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/sdk/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/main.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/main.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/workflows/commercial-dd-report.yaml`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/standards/commercial-house-standard.yaml` (created)
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/app/review-workspace.tsx`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/app/review-workspace.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/globals.css`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/standards/templates/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/standards/runs/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/api/standards/runs/[standardsRunId]/route.ts` (created)
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/review/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/web/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/progress.md`
@@ -695,14 +811,14 @@
   - Updated repo documentation to describe the history-aware review loop.
 - Files created/modified:
   - `/Users/katerinamcmullen/Documents/GitHub/skua/packages/schemas/src/index.ts`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/models.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/storage.py`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/app/repository.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/models.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/storage.py`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/app/repository.py`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/lib/office.ts`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/word-task-pane.tsx`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/app/globals.css`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/apps/word-addin/README.md`
-  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/dd-api/README.md`
+  - `/Users/katerinamcmullen/Documents/GitHub/skua/services/api/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/README.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/task_plan.md`
   - `/Users/katerinamcmullen/Documents/GitHub/skua/findings.md`
@@ -712,7 +828,7 @@
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | Repository discovery | Read repo files | Identify current scaffold and first slice | Confirmed placeholder-only monorepo | pass |
-| Python compile | `python3 -m compileall services/dd-api/app` | API modules compile cleanly | All modules compiled | pass |
+| Python compile | `python3 -m compileall services/api/app` | API modules compile cleanly | All modules compiled | pass |
 | Review typecheck | `npm run typecheck:review` | Review app types resolve | Passed | pass |
 | Review build | `npm run build:review` | Next.js review app builds | Production build succeeded | pass |
 | Root test script | `npm test` | Typecheck + API compile succeed | Passed | pass |
@@ -726,48 +842,76 @@
 | Word add-in build after Office adapter wiring | `npm run build:word-addin` | Add-in still builds after Office.js and manifest integration | Passed | pass |
 | Manifest validation | `npx office-addin-manifest validate apps/word-addin/public/manifest.word.xml` | Manifest conforms to Office add-in XML schema | Passed after moving `<Runtimes>` under `<Host>` | pass |
 | Root test script after Office layer | `npm test` | Workspace checks plus API compile still succeed | Passed | pass |
-| Python compile after review-run backend | `python3 -m compileall services/dd-api/app` | DD API modules compile after review-run additions | Passed | pass |
+| Python compile after review-run backend | `python3 -m compileall services/api/app` | DD API modules compile after review-run additions | Passed | pass |
 | Word add-in build after live review wiring | `npm run build:word-addin` | Add-in builds after live review proxy/routes/UI changes | Passed | pass |
 | Review app build after SDK expansion | `npm run build:review` | Existing review app still builds after SDK changes | Passed | pass |
-| Review-run API smoke test | `TestClient` post/get review run in `services/dd-api/.venv` | Persist a run and return suggestion records | Passed with one assignment suggestion | pass |
+| Review-run API smoke test | `TestClient` post/get review run in `services/api/.venv` | Persist a run and return suggestion records | Passed with one assignment suggestion | pass |
 | Root test script after live review bridge | `npm test` | Workspace checks plus API compile still succeed | Passed | pass |
-| Python compile after suggestion actions | `python3 -m compileall services/dd-api/app` | DD API modules compile after action endpoints and migrations | Passed | pass |
+| Python compile after suggestion actions | `python3 -m compileall services/api/app` | DD API modules compile after action endpoints and migrations | Passed | pass |
 | Word add-in build after action receipts | `npm run build:word-addin` | Add-in builds after persisted suggestion-action wiring | Passed | pass |
-| Suggestion action API smoke test | `TestClient` create/apply/mark-reviewed in `services/dd-api/.venv` | Persist suggestion status and reviewer note changes | Passed with final status `reviewed` | pass |
+| Suggestion action API smoke test | `TestClient` create/apply/mark-reviewed in `services/api/.venv` | Persist suggestion status and reviewer note changes | Passed with final status `reviewed` | pass |
 | Review app build after action SDK expansion | `npm run build:review` | Existing review app still builds after SDK method additions | Passed | pass |
 | Root test script after persisted suggestion actions | `npm test` | Workspace checks plus API compile still succeed | Passed | pass |
-| Python compile after suggestion events | `python3 -m compileall services/dd-api/app` | DD API modules compile after event-history additions | Passed | pass |
+| Python compile after suggestion events | `python3 -m compileall services/api/app` | DD API modules compile after event-history additions | Passed | pass |
 | Word add-in build after anchor-aware receipts | `npm run build:word-addin` | Add-in builds after Office receipt enrichment and event UI changes | Passed | pass |
-| Suggestion event smoke test | `TestClient` create/apply with `applied_anchor` in `services/dd-api/.venv` | Persist event row and return post-apply anchor context | Passed with `applied_comment` event and anchor quote | pass |
+| Suggestion event smoke test | `TestClient` create/apply with `applied_anchor` in `services/api/.venv` | Persist event row and return post-apply anchor context | Passed with `applied_comment` event and anchor quote | pass |
 | Review app build after event schema expansion | `npm run build:review` | Existing review app still builds after new schema fields | Passed | pass |
 | Root test script after suggestion event history | `npm test` | Workspace checks plus API compile still succeed | Passed | pass |
-| Python compile after binary artifact changes | `python3 -m compileall services/dd-api/app services/worker` | DD API and worker compile after export/history additions | Passed | pass |
+| Python compile after binary artifact changes | `python3 -m compileall services/api/app services/worker` | DD API and worker compile after export/history additions | Passed | pass |
 | Review app typecheck after binary export routes | `npm run typecheck:review` | Review app still typechecks after buffer-backed artifact routes and history UI | Passed after switching proxy responses to `Buffer.from(...)` | pass |
 | Word add-in typecheck after shared SDK export helpers | `npm run typecheck:word-addin` | Add-in still typechecks after SDK expansion | Passed | pass |
 | Root test script after binary artifact/history work | `npm test` | Workspace checks plus API compile still succeed | Passed | pass |
 | Review app build after workflow/DD artifact export work | `npm run build:review` | Review app builds with the new export routes and history panels | Passed | pass |
 | Word add-in build after SDK binary helper additions | `npm run build:word-addin` | Word add-in build remains green after SDK changes | Passed | pass |
 | Artifact/history smoke test | Direct repository smoke using generated DOCX uploads, workflow run, row corrections, report edits, and artifact exports | Workflow completes, `.xlsx` and `.docx` exports are valid binaries, and workflow/report events are returned on reload | Passed with `workflow_event_actions=['rows_updated']`, `report_event_actions=['updated', 'regenerated_from_rows']`, workbook headers present, and DOCX heading `Due Diligence Report` | pass |
-| Python compile after structured-export changes | `python3 -m compileall services/dd-api/app services/worker` | DD API and worker compile after diff-summary and export-structure changes | Passed | pass |
+| Python compile after structured-export changes | `python3 -m compileall services/api/app services/worker` | DD API and worker compile after diff-summary and export-structure changes | Passed | pass |
 | Review app typecheck after diff-summary UI wiring | `npm run typecheck:review` | Review app still typechecks after diff-summary rendering changes | Passed | pass |
 | Word add-in typecheck after shared schema expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after workflow/report event schema changes | Passed | pass |
 | Root test script after structured-export changes | `npm test` | Workspace checks plus API compile still succeed | Passed on clean serial rerun | pass |
 | Structured export smoke test | Direct repository smoke using generated DOCX uploads, workflow correction, report edit, and export inspection | Workbook contains reviewer-facing sheets, history summaries are populated, diff summaries are returned, and DOCX includes history section | Passed with sheet names `['Workflow Results', 'Citations', 'Exceptions', 'Document Summaries', 'History']`, history summary text populated, and `docx_history_present=True` | pass |
-| Python compile after template-driven export changes | `python3 -m compileall services/dd-api/app services/worker` | DD API and worker compile after workflow-template contract expansion | Passed | pass |
+| Python compile after template-driven export changes | `python3 -m compileall services/api/app services/worker` | DD API and worker compile after workflow-template contract expansion | Passed | pass |
 | Review app typecheck after workflow-template schema changes | `npm run typecheck:review` | Review app still typechecks after template contract changes | Passed | pass |
 | Word add-in typecheck after workflow-template schema changes | `npm run typecheck:word-addin` | Word add-in still typechecks after schema changes | Passed | pass |
 | Root test script after template-driven export changes | `npm test` | Workspace checks plus API compile still succeed | Passed on clean serial rerun | pass |
 | Template-driven export smoke test | Direct repository smoke loading workflow YAML, running a workflow, and inspecting exported workbook/docx headings | Structured workbook sheets and memo headings match the workflow template | Passed with sheet names `['Workflow Results', 'Citations', 'Exceptions', 'Document Summaries', 'History']` and DOCX headings `['Template Export Smoke', 'Executive summary', 'Assignment and change-of-control risks', 'Renewal and termination observations', 'Document summaries', 'Exceptions list']` | pass |
-| Python compile after artifact-variant and standards changes | `python3 -m compileall services/dd-api/app services/worker` | DD API and worker compile after standards/template expansion | Passed | pass |
+| Python compile after artifact-variant and standards changes | `python3 -m compileall services/api/app services/worker` | DD API and worker compile after standards/template expansion | Passed | pass |
 | Review app typecheck after artifact-variant support | `npm run typecheck:review` | Review app still typechecks after workflow variant selector and schema changes | Passed | pass |
 | Word add-in typecheck after live Standards wiring | `npm run typecheck:word-addin` | Word add-in still typechecks after live Standards routes and UI | Passed after tightening the standards clause view type | pass |
 | Root test script after standards pivot | `npm test` | Workspace checks plus API compile still succeed | Passed on clean serial rerun | pass |
 | Artifact-variant and standards smoke test | Direct repository smoke using `exec_brief` artifact variant plus a standards comparison run | Workbook/docx follow the chosen variant and Standards returns real score/missing/weak output | Passed with workbook sheets `['Key Findings', 'Exceptions', 'History']`, DOCX headings `['Variant Standards Smoke', 'Executive summary', 'Critical findings', 'Exceptions list']`, standards score `12.5`, and missing/weak clause results | pass |
-| Python compile after standards remediation changes | `python3 -m compileall services/dd-api/app` | DD API compiles after richer standards finding metadata and backward-compatible hydration changes | Passed | pass |
+| Python compile after standards remediation changes | `python3 -m compileall services/api/app` | DD API compiles after richer standards finding metadata and backward-compatible hydration changes | Passed | pass |
 | Word add-in build after standards remediation wiring | `npm run build:word-addin` | Word add-in builds after adding live locate/apply actions and insert-after Office support | Passed | pass |
 | Review app build after shared standards schema widening | `npm run build:review` | Review app still builds after shared schema widening | Passed | pass |
-| Review app TypeScript check after shared standards schema widening | `npm --workspace @skua/review exec -- tsc --noEmit` | Review app TypeScript remains clean after standards schema widening | Passed | pass |
+| Review app TypeScript check after shared standards schema widening | `npm --workspace @skua/web exec -- tsc --noEmit` | Review app TypeScript remains clean after standards schema widening | Passed | pass |
 | Standards remediation smoke test | Direct repository smoke using a temporary project/document version and a standards run | Multiple standards packs load, missing clauses carry explicit fix modes, and weak clauses carry matched excerpts | Passed with `template_ids=['commercial-house-standard', 'vendor-paper-tightened']`, missing fix modes `['insert_after_selection', 'replace_selection']`, and weak excerpt `Neither party may assign this Agreement without prior written consent of the other party.` | pass |
+| Python compile after Phase 4 review engine | `python3 -m compileall services/api/app` | API modules compile after platform review-playbook and review-run additions | Passed | pass |
+| Platform init after Phase 4 migration | `./scripts/platform-init.sh` | Alembic upgrade and seed path handle richer finding metadata and starter review playbooks | Passed | pass |
+| API suite after Phase 4 review engine | `npm run test:api` | Platform ingest, parsing, auth, and new review-run flows all pass together | Passed with `10 passed` | pass |
+| Review app typecheck after Phase 4 schema expansion | `npm run typecheck:web` | Support web app still typechecks after platform review contracts were added to shared schemas/SDK | Passed | pass |
+| Word add-in typecheck after Phase 4 schema expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after platform review contracts were added to shared schemas/SDK | Passed | pass |
+| Root test script after Phase 4 review engine | `npm test` | Repo-wide checks remain green with the new platform review engine | Passed | pass |
+| Python compile after Phase 5 ask/revise services | `python3 -m compileall services/api/app` | API modules compile after platform ask/revise additions | Passed | pass |
+| API suite after Phase 5 ask/revise services | `npm run test:api` | Platform ingest, review, ask, and revise flows all pass together | Passed with `14 passed` | pass |
+| Review app typecheck after Phase 5 schema expansion | `npm run typecheck:web` | Support web app still typechecks after platform ask/revise contracts were added to shared schemas/SDK | Passed | pass |
+| Word add-in typecheck after Phase 5 schema expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after platform ask/revise contracts were added to shared schemas/SDK | Passed | pass |
+| Root test script after Phase 5 ask/revise services | `npm test` | Repo-wide checks remain green with the new platform ask and revise engine | Passed | pass |
+| Word add-in typecheck after Phase 6 rewrite | `npm run typecheck:word-addin` | The Word add-in builds after switching to platform-native auth, sync, review, ask, revise, and settings routes | Passed | pass |
+| Review app typecheck after Phase 6 schema additions | `npm run typecheck:web` | Support web app remains green after shared auth/platform contract additions | Passed | pass |
+| Root test script after Phase 6 add-in rewrite | `npm test` | Repo-wide checks remain green after the Word add-in moved to platform-native auth, sync, review, ask, and revise flows | Passed | pass |
+| Python compile after Phase 7 clause-memory backend | `python3 -m compileall services/api/app` | API modules compile after clause-bank CRUD, preference signals, and ranking helpers were added | Passed | pass |
+| API suite after Phase 7 clause-memory work | `npm run test:api` | Platform ingest, review, ask, revise, clause-bank CRUD, and preference-memory flows all pass together | Passed with `17 passed` | pass |
+| Word add-in typecheck after Phase 7 clause-memory wiring | `npm run typecheck:word-addin` | The Word add-in still typechecks after replacing local saved clauses with workspace clause-bank state | Passed | pass |
+| Review app typecheck after Phase 7 schema expansion | `npm run typecheck:web` | Support web app remains green after shared clause-bank and preference-signal contracts were added | Passed | pass |
+| Root test script after Phase 7 clause-memory work | `npm test` | Repo-wide checks remain green after clause-bank CRUD, preference ranking, and add-in memory wiring | Passed | pass |
+| Python compile after Phase 8/9 provider and trust work | `python3 -m compileall services/api/app` | API modules compile after provider policy, billing, trust, audit, and deletion additions | Passed | pass |
+| API suite after Phase 8/9 provider and trust work | `npm run test:api` | Platform ingest, review, ask, revise, governance, pricing, trust, and deletion flows all pass together | Passed with `20 passed` | pass |
+| Review app typecheck after Phase 8/9 support-surface additions | `npm run typecheck:web` | Support web app still typechecks after billing, trust, and support-admin panels were added | Passed | pass |
+| Word add-in typecheck after Phase 8/9 settings expansion | `npm run typecheck:word-addin` | Word add-in still typechecks after billing, trust, spend-estimate, audit, and deletion controls were added | Passed | pass |
+| Python compile after Phase 10 release-gate additions | `python3 -m compileall services/api/app` | API modules compile after release-criteria metrics and support-token workspace gating were added | Passed | pass |
+| API suite after Phase 10 end-to-end coverage | `npm run test:api` | Platform API tests cover the new end-to-end pilot path and failure-path release gating | Passed with `22 passed` | pass |
+| Review app typecheck after Phase 10 dashboard additions | `npm run typecheck:web` | Support web app still typechecks after release-criteria and pilot-kit panels were added | Passed | pass |
+| Word add-in typecheck after Phase 10 docs-only changes | `npm run typecheck:word-addin` | Word add-in still typechecks with the new pilot docs and unchanged host UI surface | Passed | pass |
+| Root test script after Phase 10 pilot readiness work | `npm test` | Repo-wide checks remain green after end-to-end tests, release dashboard wiring, and pilot-kit docs | Passed with `22 passed` API suite plus clean web/add-in typechecks and API compile | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -781,6 +925,11 @@
 | 2026-04-19 | Parallel `npm test` plus standalone review build hit the known `.next` file race again during template-driven export verification | 1 | Kept the successful standalone builds and reran `npm test` serially in isolation. |
 | 2026-04-19 | Standards UI initially failed typecheck because inline clause rendering widened to `unknown` | 1 | Added an explicit `StandardsClauseView` type and rendered optional fields directly. |
 | 2026-04-20 | New Office insert-after helper initially used unsupported typings for `InsertLocation.after` and assumed `insertText` returned a `Range` | 1 | Switched to the literal `"After"` API value and returned an anchor snapshot built from the inserted text. |
+| 2026-04-20 | Saved clause language was initially only surfaced for redline findings during Phase 7 verification | 1 | Broadened review output so actionable comment findings can also carry preferred clause-bank fallback language. |
+| 2026-04-20 | Initial Phase 8 provider validation treated every stored secret as BYOK and broke the older hosted-mode provider-config test | 1 | Treated only explicit BYOK plans or provider-native key prefixes as BYOK and kept opaque secrets compatible with hosted mode. |
+| 2026-04-20 | Platform audit-event route initially collided with the legacy repository `list_audit_events` import | 1 | Aliased the platform audit helper import and routed the endpoint to the platform-specific implementation. |
+| 2026-04-20 | Support web billing/trust panel wiring initially failed on a missing comma in the expanded props destructuring | 1 | Fixed the destructuring syntax and reran the web typecheck. |
+| 2026-04-20 | The support web billing panel still depended on an authenticated user even though the web surface uses a support token | 1 | Allowed billing and release-criteria routes to authorize via support token or workspace auth and updated the support web fetch headers. |
 
 ## 5-Question Reboot Check
 | Question | Answer |

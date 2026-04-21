@@ -2,7 +2,7 @@
   "name": "@skua/word-addin",
   "private": true,
   "version": "0.1.0",
-  "description": "Word add-in for Skua Legal contract review",
+  "description": "Word add-in scaffold for Skua Legal",
   "scripts": {
     "dev": "next dev --experimental-https --port 3001",
     "build": "next build",

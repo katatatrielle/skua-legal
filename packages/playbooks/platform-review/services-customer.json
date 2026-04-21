@@ -1,0 +1,84 @@
+{
+  "id": "pb-services-customer-v1",
+  "name": "Services Agreement Customer-Side v1",
+  "version": "1.0.0",
+  "contract_type": "services_agreement",
+  "represented_party": "customer",
+  "issue_rules": [
+    {
+      "id": "acceptance_criteria",
+      "title": "Acceptance criteria are missing",
+      "issue_type": "acceptance",
+      "clause_type": "acceptance",
+      "priority": 10,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["acceptance", "accept", "nonconforming services"] },
+      "severity": "high",
+      "explanation_template": "The agreement does not appear to include customer acceptance criteria or a rejection process for nonconforming services.",
+      "comment_template": "Add a defined acceptance testing and rejection process.",
+      "fallback_language": "Customer will have ten business days after delivery of Services or Deliverables to review them for material conformity with the applicable Statement of Work and may reject nonconforming Services or Deliverables by written notice describing the deficiency."
+    },
+    {
+      "id": "termination_for_convenience",
+      "title": "Termination for convenience is missing",
+      "issue_type": "termination",
+      "clause_type": "termination",
+      "priority": 9,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["terminate for convenience", "without cause"] },
+      "severity": "high",
+      "explanation_template": "The agreement does not clearly permit the customer to terminate for convenience.",
+      "comment_template": "Add a customer termination-for-convenience right with limited wind-down charges.",
+      "fallback_language": "Customer may terminate this Agreement or any Statement of Work for convenience on thirty days' prior written notice, provided Customer pays fees for Services properly performed through the effective termination date."
+    },
+    {
+      "id": "auto_renewal",
+      "title": "Auto-renewal language is present",
+      "issue_type": "auto_renewal",
+      "clause_type": "term",
+      "priority": 8,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["automatic renew", "renew automatically", "successive renewal"] },
+      "severity": "medium",
+      "explanation_template": "The agreement includes auto-renewal mechanics that may be too sticky for the customer.",
+      "comment_template": "Review the notice period and whether renewal should require affirmative customer approval."
+    },
+    {
+      "id": "subcontracting",
+      "title": "Subcontracting rights are broad",
+      "issue_type": "subcontracting",
+      "clause_type": "subcontracting",
+      "priority": 7,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["subcontract", "delegate", "third party service provider"] },
+      "severity": "medium",
+      "explanation_template": "The agreement allows subcontracting or delegation and should be checked for customer consent and vendor responsibility language.",
+      "comment_template": "Add notice, consent, and continuing responsibility requirements for subcontractors."
+    },
+    {
+      "id": "liability_cap",
+      "title": "Liability cap language needs review",
+      "issue_type": "liability",
+      "clause_type": "liability",
+      "priority": 6,
+      "action_type": "comment",
+      "trigger": { "mode": "pattern", "patterns": ["liability cap", "maximum aggregate liability", "consequential damages"] },
+      "severity": "medium",
+      "explanation_template": "The limitation of liability language should be reviewed for an adequate cap and customer-side carve-outs.",
+      "comment_template": "Review whether the cap and carve-outs cover confidentiality, data security, and indemnity claims."
+    },
+    {
+      "id": "transition_assistance",
+      "title": "Transition assistance is missing",
+      "issue_type": "transition_assistance",
+      "clause_type": "termination",
+      "priority": 5,
+      "action_type": "redline",
+      "trigger": { "mode": "missing", "search_terms": ["transition assistance", "cooperate", "transition period"] },
+      "severity": "medium",
+      "explanation_template": "The agreement does not appear to require reasonable transition assistance after termination.",
+      "comment_template": "Add a short transition assistance obligation on termination.",
+      "fallback_language": "For up to sixty days after termination, Vendor will provide reasonable transition assistance, at Vendor's then-current professional services rates, to help Customer transition the Services in an orderly manner."
+    }
+  ]
+}

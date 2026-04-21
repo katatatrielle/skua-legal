@@ -1,12 +1,50 @@
-# Task Plan: Skua DD Platform Kickoff
+# Task Plan: Skua Solo-First Contract Copilot Reset
 
 ## Goal
-Turn the repo scaffold into a runnable due-diligence slice that supports real workspace creation, PDF/DOCX upload, parsing, persistence, and citation-backed issue generation in the review UI, then extend it with an implementation-ready spec package for the broader Word-first contracts product.
+Reset the repo around the solo-first, Word-native contract copilot and implement the first execution slice: rename repo boundaries to match the v1 product story, remove non-v1 surfaces, narrow the visible UI to Review, Ask, Revise, Saved Clauses, and Settings, and keep the stack runnable after the transition.
 
 ## Current Phase
-Phase 31
+Phase 37
 
 ## Phases
+
+### Phase 37: Phase 6 Word Add-in Core Experience
+- [x] Add add-in auth/session handling and workspace selection against the platform APIs
+- [x] Add document and selection sync from Word with local session association and duplicate-avoidance
+- [x] Replace the add-in review, ask, revise, apply, and anchor-jump flows with platform-native behavior
+- [x] Add local saved-clause handling plus provider-settings routes inside the narrowed add-in surface
+- [x] Document the manual Word QA matrix and known host/runtime bounds
+- **Status:** complete
+
+### Phase 36: Phase 5 Ask and Revise Engines
+- [x] Add persisted platform ask/revise contracts in Python and TypeScript
+- [x] Implement document-grounded ask and revise services with selection-local retrieval, clause-bank priority, and guardrails
+- [x] Expose platform ask/revise routes and SDK methods
+- [x] Add tests for cited answers, unsupported-answer refusal, selection-aware retrieval, and revise suggestion labeling
+- **Status:** complete
+
+### Phase 35: Phase 4 Review Engine
+- [x] Add validated platform playbook contracts and sync starter playbooks from file-backed JSON
+- [x] Implement deterministic review runs with persisted findings, citations, comment/redline artifacts, and ranking
+- [x] Expose platform review-playbook and review-run API routes plus a migration for richer finding metadata
+- [x] Add review-engine tests for stored findings, filtering, listing, and evaluation metrics
+- **Status:** complete
+
+### Phase 34: Phase 3 Ingestion, Parsing, and Anchors
+- [x] Add platform-native ingest routes for web uploads and Word selection uploads
+- [x] Add richer DOCX/PDF parsing with ordered segment extraction for headings, clauses, paragraphs, and tables
+- [x] Add stable anchor payloads with ordinal, quote, prefix, suffix, page, and relocation strategies
+- [x] Add hybrid segment retrieval using lexical fallback plus stored deterministic embedding tokens
+- [x] Add parse QA fixtures/tests for DOCX, PDF, ingest/search, and anchor relocation
+- **Status:** complete
+
+### Phase 33: Phase 2 Platform Foundation
+- [x] Add the Postgres-ready platform schema, Alembic config, and local seed/bootstrap scripts
+- [x] Add email/password auth, default workspace provisioning, memberships, and workspace-scoped access checks
+- [x] Add source/artifact object storage helpers plus deletion cleanup for generated artifacts
+- [x] Add Redis/RQ queue wiring, worker fallback behavior, CI, staging compose files, and structured request logging
+- [x] Add API tests for auth, workspace scoping, and artifact cleanup; wire them into the root test command and CI
+- **Status:** complete
 
 ### Phase 1: Requirements & Discovery
 - [x] Understand user intent
@@ -227,6 +265,15 @@ Phase 31
 - [x] Update docs and planning files for the structured-export baseline
 - **Status:** complete
 
+### Phase 32: Solo-First Repo Reset
+- [x] Rename repo surfaces to the v1 boundaries
+- [x] Remove or hide non-v1 UI flows
+- [x] Add local env/bootstrap defaults for the renamed stack
+- [x] Rebrand docs and startup commands around Word add-in plus thin web app
+- [x] Verify the renamed app and API still build and typecheck
+- [x] Update planning files with the new baseline
+- **Status:** complete
+
 ### Phase 29: Template-Driven Artifact Layouts
 - [x] Expand workflow template contracts to declare workbook sheets and memo sections structurally
 - [x] Move export composition to use workflow template metadata instead of a single hardcoded layout
@@ -297,7 +344,7 @@ Phase 31
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `npm install` rejected `workspace:*` dependency URLs | 1 | Replaced internal package links with local `file:` references. |
-| FastAPI `TestClient` missing `httpx` | 1 | Added `httpx` as a `dev` extra in `services/dd-api/pyproject.toml`. |
+| FastAPI `TestClient` missing `httpx` | 1 | Added `httpx` as a `dev` extra in `services/api/pyproject.toml`. |
 | Playbook YAML versions parsed as floats | 1 | Quoted playbook version values to match the API schema. |
 | Next.js app-page typing rejected a non-promise `searchParams` signature | 1 | Matched the page prop type expected by Next's generated app types and cast the resolved params. |
 | New queued jobs initially appeared stale right after enqueue/complete | 1 | Read newly created and updated job rows from the same SQLite transaction instead of a second connection before commit. |
@@ -308,3 +355,33 @@ Phase 31
 ## Notes
 - Re-read this plan before major decisions.
 - Update findings and progress as the implementation evolves.
+
+### Phase 38: Phase 7 Clause Bank and Preference Memory
+- [x] Add backend workspace clause-bank CRUD and preference-signal platform routes
+- [x] Extend shared schemas and SDK contracts for clause memory and preference capture
+- [x] Rank review findings with saved-clause and preference-signal boosts
+- [x] Retrieve workspace clause-bank matches automatically during revise and prefer them over generic defaults
+- [x] Replace Word add-in local saved clauses with workspace-backed clause-bank CRUD
+- [x] Emit preference signals from Word when findings are applied or dismissed and when saved clauses are reused
+- [x] Verify API tests, add-in typecheck, and repo-wide checks
+- **Status:** complete
+
+### Phase 39: Phase 8 and 9 Pricing, Trust, and Supportability
+- [x] Add provider policy resolution, BYOK validation, encrypted provider-secret storage, and hosted-mode defaults
+- [x] Record usage ledger rows for review, ask, and revise runs and expose workspace billing summaries
+- [x] Add spend-estimate and cap-enforcement endpoints plus add-in preflight cost messaging
+- [x] Add trust-center and audit-trail endpoints with support-admin overview and feature flags
+- [x] Add platform apply-event logging plus actor-aware audit events for key user actions
+- [x] Add document and matter deletion endpoints plus add-in deletion controls
+- [x] Expose billing/trust/admin surfaces in the Word add-in and thin support web app
+- [x] Verify API tests, web typecheck, add-in typecheck, and repo-wide checks
+- **Status:** complete
+
+### Phase 40: Phase 10 Pilot Readiness
+- [x] Add a release-criteria dashboard contract and workspace-scoped readiness endpoint
+- [x] Allow the support web app to load support-token-gated billing and release metrics
+- [x] Add end-to-end API tests for upload, parse, review, apply, ask, revise, save clause, rerun review, and release-gate failure paths
+- [x] Add pilot kit documentation, sample matters/contracts, and an issue-reporting flow
+- [x] Write the full computer-control execution checklist for the later Word host run
+- [ ] Run the later manual Computer Use pass on live Word hosts
+- **Status:** complete

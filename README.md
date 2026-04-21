@@ -1,83 +1,33 @@
-# Skua Legal
+# Skua
 
-Skua Legal is being repositioned as a Word-native contract review copilot for solo lawyers and very small firms.
+Skua is a solo-first, Word-native contract copilot.
 
-The intended v1 product is narrow on purpose:
+The v1 product is intentionally narrow:
 
-- open a contract in Word
-- run a playbook-based review
-- ask cited questions about a clause or agreement
-- apply comments or tracked-change suggestions
-- save preferred fallback language
-- reuse that language later
+- review a contract in Word
+- ask a cited question about the current document
+- revise a clause into suggested language
+- save preferred clause language for later reuse
 
-The web app is a support surface for auth, billing, settings, playbooks, clause memory, matter history, and spend controls. Optional BYOK remains part of the product direction.
+The web app is support-only. It is not the main workflow.
 
-This repo still contains earlier due-diligence and workflow-heavy prototype slices. Those pieces are transitional infrastructure and legacy product experiments, not the governing product thesis going forward.
+## Repo Shape
 
-## Product Boundary
+```text
+apps/
+  word-addin/  Primary product surface
+  web/         Thin support web app
+services/
+  api/         FastAPI backend for review, ask, revise, citations, and memory
+  worker/      Background job runner
+packages/
+  playbooks/   File-backed starter playbooks
+  prompts/     Prompt assets
+  schemas/     Shared contracts
+  sdk/         Typed API client helpers
+```
 
-### In scope for the solo-first path
-
-- Word-first contract review and revision
-- playbook-based findings with citations
-- cited Ask and clause-level Revise actions
-- saved fallback language and clause-bank retrieval
-- lightweight matter and run history
-- transparent hosted pricing plus BYOK support
-
-### Out of scope for v1
-
-- a full diligence workspace
-- a multi-reviewer deal room
-- a broad legal research engine
-- a benchmark or compare-to-market platform
-- a heavy enterprise admin suite
-
-## Current State vs Target State
-
-### Target product direction
-
-- `apps/word-addin` is the primary product surface.
-- `apps/review` is evolving into a thin web console for settings, history, playbooks, clause memory, and billing-style controls.
-- `services/dd-api` is a transitional path name for the backend API that will continue to power ingest, review, ask, revise, retrieval, usage, and audit flows.
-- `services/worker` remains the async execution layer for parsing, indexing, review runs, ask runs, revise runs, and maintenance jobs.
-
-### Reusable foundations already in the repo
-
-- a Word add-in shell with Review, Ask, Draft, Playbooks, and Standards tabs
-- persisted review runs, review suggestions, and suggestion actions
-- parsing and upload plumbing for DOCX and PDF files
-- source anchoring, citations, and async job handling
-- file-backed playbooks and early retrieval/library plumbing
-
-### Legacy or transitional prototype slices
-
-- multi-document diligence queries and workflow runs
-- DD report, memo, and exceptions-list generation
-- legacy review-grid positioning in `apps/review`
-- `dd-api` naming and DD-heavy route groupings
-
-Those legacy slices stay in the repo for now because they still provide useful scaffolding and compatibility, but they should be read as transitional rather than target-product architecture.
-
-## Core Docs
-
-- [Engineering spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-engineering-spec.md)
-- [Endpoint contracts](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-endpoint-contracts.md)
-- [Word add-in wireframes](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-word-addin-wireframes.md)
-
-The filenames remain unchanged for compatibility, but those docs now describe the solo-first contract review direction.
-
-## Current Repo Slice
-
-The repo currently contains:
-
-- a FastAPI backend at `services/dd-api` with persisted uploads, parsing, review, ask, draft, standards, audit, and legacy workflow routes
-- a Next.js Word add-in at `apps/word-addin` that is the closest thing to the target product surface
-- a Next.js web app at `apps/review` that currently mixes thin-console behavior with older review-grid and workflow panels
-- file-backed playbooks, standards, prompts, and legacy workflow templates under `packages/`
-
-## Quick Start
+## Local Setup
 
 ### 1. Install JavaScript dependencies
 
@@ -85,157 +35,142 @@ The repo currently contains:
 npm install
 ```
 
-### 2. Start the transitional backend API
-
-The service path is still `services/dd-api` for now.
+### 2. Bootstrap the local API environment
 
 ```bash
-cd services/dd-api
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn app.main:app --reload
+./scripts/bootstrap-local.sh
 ```
 
-The API will be available at `http://127.0.0.1:8000`.
-
-### 3. Start the web console
-
-The workspace path is still `apps/review` for now.
+For a platform-only reset without reinstalling dependencies:
 
 ```bash
-cd /path/to/skua
-DD_API_BASE_URL=http://127.0.0.1:8000 npm run dev:review
+./scripts/platform-init.sh
 ```
 
-The console will be available at `http://127.0.0.1:3000`.
-
-### 4. Start the Word add-in
+### 3. Start the API
 
 ```bash
-cd /path/to/skua
-npm run dev:word-addin
+npm run dev:api
 ```
 
-The add-in will be available at:
+The API runs at `http://127.0.0.1:8000`.
 
-- `http://127.0.0.1:3001` for browser preview
-- `https://localhost:3001` for Word sideloading via the local manifest
+### 4. Start the support web app
+
+```bash
+SKUA_API_BASE_URL=http://127.0.0.1:8000 npm run dev:web
+```
+
+The web app runs at `http://127.0.0.1:3000`.
+
+### 5. Start the Word add-in
+
+```bash
+SKUA_API_BASE_URL=http://127.0.0.1:8000 npm run dev:word-addin
+```
+
+The add-in runs at:
+
+- `http://127.0.0.1:3001`
+- `https://localhost:3001` for Word sideloading
 
 Local manifest path:
 
 - `apps/word-addin/public/manifest.word.xml`
 
-### 5. Run the local worker
+### 6. Start the worker
 
 ```bash
-cd /path/to/skua
-services/dd-api/.venv/bin/python services/worker/runner.py
+services/api/.venv/bin/python services/worker/runner.py
 ```
 
-Useful local modes:
+Useful worker modes:
 
-- `--once` to process a single queued job and exit
-- `--max-jobs 5` to drain a bounded slice of the queue and stop
+- `--once`
+- `--max-jobs 5`
+- `--worker-name local-dev-worker`
 
-## Transitional API Surface
+## Current v1 Implementation Baseline
 
-The current API still includes legacy DD-oriented endpoints alongside the newer Word-review routes.
+### Word add-in
 
-Core solo-first routes already present:
+- sign in, restore session, and switch active workspaces inside Word
+- sync the current document or selection into the platform from Word
+- review the current selection or full document with citation-linked findings
+- ask cited questions against current document context
+- revise a selected clause into suggested language
+- save preferred clause language into a workspace clause bank
+- apply comments, tracked-change redlines, fallback inserts, and host undo in Word
+- relocate anchors after document drift with best-match warnings
 
-- `GET /healthz`
-- `GET /api/v1/playbooks`
-- `GET /api/v1/standards/templates`
-- `GET /api/v1/playbooks/saved-notes`
-- `GET /api/v1/workspaces`
-- `POST /api/v1/workspaces`
-- `GET /api/v1/projects`
-- `POST /api/v1/projects`
-- `POST /api/v1/documents/upload`
-- `GET /api/v1/documents/{document_id}`
-- `POST /api/v1/documents/{document_id}/ingest`
-- `POST /api/v1/review/runs`
-- `GET /api/v1/review/runs/{review_run_id}`
-- `POST /api/v1/review/runs/{review_run_id}/export-summary`
-- `POST /api/v1/review/suggestions/{suggestion_id}/apply`
-- `POST /api/v1/review/suggestions/{suggestion_id}/dismiss`
-- `POST /api/v1/review/suggestions/{suggestion_id}/mark-reviewed`
-- `POST /api/v1/review/suggestions/{suggestion_id}/save-to-playbook`
-- `POST /api/v1/ask`
-- `GET /api/v1/ask/{ask_run_id}`
-- `POST /api/v1/draft`
-- `GET /api/v1/draft/{draft_run_id}`
-- `POST /api/v1/library/search`
-- `GET /api/v1/audit`
+### Web app
 
-Legacy or transitional routes still present:
+- create and choose workspaces
+- upload support-side PDF and DOCX files
+- inspect findings, citations, memo sections, and document state
+- view billing, trust, support-admin, and release-criteria status for a pilot workspace
 
-- workflow templates and workflow runs
-- DD report reads, updates, and exports
-- multi-document query runs and exports
-- first-pass workspace outputs
+### API and worker
 
-## Monorepo Layout
+- document upload and parsing
+- Postgres-ready platform schema with Alembic migrations and seed data
+- workspace auth, memberships, and provider-config storage
+- local or S3-backed source/artifact object storage
+- Redis/RQ-backed queueing with worker fallback to local polling
+- platform-native document ingest for web uploads and Word selection uploads
+- parsed segment storage for headings, clauses, paragraphs, and tables
+- anchor relocation and hybrid segment retrieval for cited downstream flows
+- file-backed platform playbooks synced into the database at startup
+- deterministic review runs with stored findings, citations, ranking, and apply artifacts
+- platform ask runs with short cited answers and unsupported-claim refusals
+- platform revise runs with suggested-language labeling, playbook defaults, automatic clause-bank retrieval, and clause-bank priority hooks
+- workspace clause-bank CRUD and preference-signal capture
+- review ranking that incorporates saved clauses and explicit preference signals
+- provider policy resolution, BYOK validation, encrypted provider-secret storage, usage ledgering, and spend-cap enforcement
+- billing summaries, spend estimates, trust-center data, audit trails, apply-event logging, support-admin overview routes, and release-criteria metrics
+- persisted review runs and suggestion actions
+- queued ask and revise runs
+- starter playbook loading
+- canonical project, document-version, job, and audit records
+- structured request logging plus request IDs
 
-```text
-apps/
-  chat/        Optional shell for account/admin-style flows
-  review/      Transitional web console path; evolving away from DD-heavy review workspace behavior
-  word-addin/  Primary Word-first task pane for review, ask, revise, and clause memory loops
-services/
-  dd-api/      Transitional backend path name for the contract-review API
-  worker/      Async jobs for ingest, parsing, review, ask, revise, and exports
-  gateway/     Provider routing, hosted/BYOK policy, and future spend controls
-packages/
-  playbooks/   Editable contract review playbooks
-  prompts/     Prompt assets and prompt fragments
-  schemas/     Shared TypeScript and API contracts
-  sdk/         Internal client helpers
-  standards/   House-standard comparison packs
-  workflows/   Legacy workflow templates retained during the transition
-infra/
-  Local infrastructure notes and environment assets
-```
+## Environment Variables
 
-## Product Principles
+Preferred variables:
 
-- Word is the primary working surface.
-- Findings and answers must be document-grounded and cited.
-- Playbooks and fallback language are product memory, not hardcoded logic.
-- Users stay in control of apply actions.
-- Cost visibility and BYOK support are part of the product, not an enterprise afterthought.
+- `SKUA_API_BASE_URL`
+- `SKUA_ALLOWED_ORIGINS`
+- `SKUA_SUPPORT_TOKEN`
+- `SKUA_ENCRYPTION_SECRET`
 
-## Seed Data
+Compatibility fallback:
 
-The seeded local database still exposes the demo matter `project-redwood`.
+- `DD_API_BASE_URL` still works for local clients during the transition
 
-That demo data remains useful for exercising uploads, review grids, legacy workflow panels, and export plumbing, but it should be treated as prototype scaffolding rather than the target solo-first experience.
+See:
 
-Uploaded local data is stored in:
+- `.env.example`
+- `apps/web/.env.example`
+- `apps/word-addin/.env.example`
+- `services/api/.env.example`
 
-- `data/skua.db`
-- `uploads/<workspace-id>/...`
+Infrastructure helpers:
 
-## Roadmap
+- `infra/docker-compose.platform.yml`
+- `infra/docker-compose.staging.yml`
+- `infra/staging.env.example`
 
-### Alpha
+## Documentation
 
-- tighten the Word review loop
-- improve anchors and citation validation
-- keep one or two strong review playbooks working end to end
-- keep the web console thin and supportive
+- [Solo-first v1 spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/solo-first-word-native-contract-copilot-v1.md)
+- [Word add-in Phase 6 QA matrix](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/word-addin-phase6-qa-matrix.md)
+- [Pilot kit](/Users/katerinamcmullen/Documents/GitHub/skua/docs/pilot/pilot-kit.md)
+- [Computer-control test plan](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/phase10-computer-control-test-plan.md)
+- [Legacy engineering spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-engineering-spec.md)
+- [Legacy endpoint contracts](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-endpoint-contracts.md)
+- [Legacy add-in wireframes](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-word-addin-wireframes.md)
 
-### Private pilot
+## Notes
 
-- add better tracked-change application
-- add clause-bank save and retrieval loops
-- add spend estimates and BYOK provider settings
-- improve matter and run history
-
-### Paid beta
-
-- add preference ranking over accepted and saved language
-- support re-review of changed sections
-- improve cost dashboards and trust controls
-- stabilize onboarding and small-firm workspace behavior
+- The repo still contains older query, workflow, and standards code paths behind the scenes. They are no longer the primary product story.
+- Phases 1 through 10 of the solo-first reset are now in place: repo boundaries, visible v1 scope, platform schema/migrations, auth, storage, queueing, ingest/parsing/anchors, review, ask, revise, Word apply flows, workspace clause memory, pricing controls, trust surface, support/admin basics, end-to-end pilot checks, and release gates.

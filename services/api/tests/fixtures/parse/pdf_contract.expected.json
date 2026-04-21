@@ -1,0 +1,5 @@
+{
+  "parser_name": "pdf",
+  "segment_types": ["heading", "clause"],
+  "page_numbers": [1, 1]
+}
