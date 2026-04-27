@@ -10,7 +10,7 @@
   <ProviderName>Skua Legal</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Skua Contracts" />
-  <Description DefaultValue="Word-first contract review, ask, revise, citations, and saved-clause workflows for Skua." />
+  <Description DefaultValue="Secure legal AI workbench for Word, with cited answers, suggested edits, provider controls, and workspace memory." />
   <IconUrl DefaultValue="https://localhost:3001/icons/skua-32.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3001/icons/skua-80.png" />
   <SupportUrl DefaultValue="https://github.com/katerinamcmullen/skua" />
@@ -177,26 +177,26 @@
         <bt:Url id="Taskpane.Ask.Url" DefaultValue="https://localhost:3001/?tab=ask" />
         <bt:Url id="Taskpane.Revise.Url" DefaultValue="https://localhost:3001/?tab=revise&amp;mode=instruction" />
         <bt:Url id="Taskpane.RefreshAnchors.Url" DefaultValue="https://localhost:3001/?tab=review&amp;action=refresh_anchors" />
-        <bt:Url id="Taskpane.ExportSummary.Url" DefaultValue="https://localhost:3001/?tab=review&amp;action=export_summary" />
+        <bt:Url id="Taskpane.ExportSummary.Url" DefaultValue="https://localhost:3001/?tab=settings" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="Skua.Group.Label" DefaultValue="Skua Contracts" />
-        <bt:String id="Skua.OpenPane.Label" DefaultValue="Open Pane" />
+        <bt:String id="Skua.Group.Label" DefaultValue="Skua Legal AI" />
+        <bt:String id="Skua.OpenPane.Label" DefaultValue="Open Workbench" />
         <bt:String id="Skua.ReviewSelection.Label" DefaultValue="Review Selection" />
         <bt:String id="Skua.ReviewDocument.Label" DefaultValue="Review Document" />
         <bt:String id="Skua.Ask.Label" DefaultValue="Ask" />
-        <bt:String id="Skua.Revise.Label" DefaultValue="Revise Clause" />
+        <bt:String id="Skua.Revise.Label" DefaultValue="Draft Edit" />
         <bt:String id="Skua.RefreshAnchors.Label" DefaultValue="Refresh Anchors" />
-        <bt:String id="Skua.ExportSummary.Label" DefaultValue="Export to Project" />
+        <bt:String id="Skua.ExportSummary.Label" DefaultValue="Open Controls" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="Skua.OpenPane.Description" DefaultValue="Open the Skua Contracts task pane." />
+        <bt:String id="Skua.OpenPane.Description" DefaultValue="Open the Skua legal AI workbench." />
         <bt:String id="Skua.ReviewSelection.Description" DefaultValue="Open the Review tab using the current selection scope." />
         <bt:String id="Skua.ReviewDocument.Description" DefaultValue="Open the Review tab using the full document scope." />
         <bt:String id="Skua.Ask.Description" DefaultValue="Open the task pane on the Ask tab." />
-        <bt:String id="Skua.Revise.Description" DefaultValue="Open the task pane on the Revise tab for the current clause." />
+        <bt:String id="Skua.Revise.Description" DefaultValue="Open the task pane in Draft mode for the current clause." />
         <bt:String id="Skua.RefreshAnchors.Description" DefaultValue="Open the Review tab and refresh the current Word selection context." />
-        <bt:String id="Skua.ExportSummary.Description" DefaultValue="Open the Review tab and export the current review summary to the project." />
+        <bt:String id="Skua.ExportSummary.Description" DefaultValue="Open controls for provider, billing, deletion, and trust posture." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

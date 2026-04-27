@@ -1,6 +1,6 @@
 # API
 
-FastAPI backend for the Skua contract copilot.
+FastAPI backend for the Skua secure legal AI workbench.
 
 Current responsibilities:
 
@@ -8,18 +8,14 @@ Current responsibilities:
 - email/password auth with default workspace provisioning
 - workspace memberships and provider configuration storage
 - provider policy resolution, BYOK validation, and encrypted secret storage
-- workspace and document persistence
+- workspace, matter, document, and document-version persistence
 - source-file upload and parsing
 - local or S3-backed source/artifact storage
-- platform-native document ingest, segment parsing, anchor relocation, and hybrid search
-- platform review playbooks, deterministic review runs, ranked findings, and exact citations
-- platform ask and revise runs with scope-aware retrieval and output guardrails
-- canonical project and document-version records
-- review runs and suggestion actions
-- ask runs
-- revise runs
-- usage ledger, spend estimates, billing summaries, trust-center data, support-admin endpoints, and release-criteria metrics
-- playbook and citation loading
+- document ingest, segment parsing, anchor relocation, and hybrid search
+- assistant-facing review, ask, and revise runs with citation-aware outputs
+- live provider bridge for OpenAI or Anthropic when `SKUA_PROVIDER_BRIDGE_MODE=live`
+- Word apply-event logging, preference signals, and workspace memory
+- usage ledger, spend estimates, billing summaries, trust-center data, support-admin endpoints, and readiness metrics
 - Redis/RQ-backed jobs plus local worker fallback
 - job and audit records
 
@@ -30,7 +26,7 @@ cd /path/to/skua/services/api
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-uvicorn app.main:app --reload
+.venv/bin/python -m uvicorn app.main:app --reload
 ```
 
 Initialize the platform schema and seed data:
@@ -49,6 +45,7 @@ npm run test:api
 
 Notes:
 
-- The service still contains older workflow-oriented routes, but they are no longer the primary v1 product surface.
+- The service still contains some older workflow-oriented internals, but the active app packages no longer expose those flows.
 - `SKUA_ALLOWED_ORIGINS` controls local CORS policy.
+- `SKUA_PROVIDER_BRIDGE_MODE=deterministic` keeps local/test runs on deterministic assistant output. Set `SKUA_PROVIDER_BRIDGE_MODE=live` with `SKUA_OPENAI_API_KEY` or `SKUA_ANTHROPIC_API_KEY`, or save a workspace BYOK provider config, to use model-backed Ask/Draft output.
 - `services/api/.env.example` includes Postgres, Redis, queue, object-storage, support-token, and retention settings.

@@ -3,8 +3,8 @@ import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Skua Word Add-in",
-  description: "Word-first contract copilot scaffold for Skua Legal"
+  title: "Skua Legal AI Workbench",
+  description: "Secure legal AI workbench for Word"
 };
 
 export default function RootLayout({

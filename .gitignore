@@ -25,6 +25,9 @@ build/
 coverage/
 *.tsbuildinfo
 
+# Local development certificates
+apps/word-addin/certificates/*.pem
+
 # Local infra state
 data/
 tmp/

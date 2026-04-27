@@ -32,6 +32,7 @@ from app.platform_models import (
 )
 from app.platform_parsing import PlatformSegment, build_embedding_tokens, search_segments
 from app.platform_provider import enforce_spend_controls, estimate_usage, record_usage_ledger, resolve_provider_runtime
+from app.platform_provider_bridge import generate_provider_text
 from app.platform_review import hydrate_playbook_record, sync_platform_playbooks
 from app.queueing import get_queue
 
@@ -269,7 +270,19 @@ def run_platform_ask(session: Session, *, ask_run_id: str, request_id: str | Non
     supported = bool(citations and citations[0][1] >= 0.12)
     if supported:
         selected_segments = [segment for segment, _ in citations[:3]]
-        answer_text = build_ask_answer(question=ask_run.question, segments=selected_segments)
+        runtime = resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask")
+        generation = generate_provider_text(
+            session,
+            workspace_id=ask_run.workspace_id,
+            runtime=runtime,
+            instructions=(
+                "You are a legal AI assistant embedded in Microsoft Word. Answer only from the provided cited excerpts. "
+                "Do not add facts that are not supported by those excerpts. Keep the answer concise and practical."
+            ),
+            prompt=build_ask_provider_prompt(question=ask_run.question, segments=selected_segments),
+            max_output_tokens=260,
+        )
+        answer_text = sanitize_ask_answer(generation.text) if generation else build_ask_answer(question=ask_run.question, segments=selected_segments)
         confidence = round(sum(score for _, score in citations[: min(len(citations), 3)]) / min(len(citations), 3), 4)
     else:
         selected_segments = []
@@ -327,11 +340,12 @@ def run_platform_ask(session: Session, *, ask_run_id: str, request_id: str | Non
         request_id=request_id,
         payload={"supported": supported, "citation_count": len(selected_segments)},
     )
+    runtime = resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask")
     usage_estimate = estimate_usage(
         session,
         workspace_id=ask_run.workspace_id,
         run_type="ask",
-        runtime=resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask"),
+        runtime=runtime,
         input_texts=[ask_run.question, ask_run.selection_text or ""],
         output_texts=[answer_text],
     )
@@ -340,8 +354,8 @@ def run_platform_ask(session: Session, *, ask_run_id: str, request_id: str | Non
         workspace_id=ask_run.workspace_id,
         run_type="ask",
         run_id=ask_run.id,
-        provider=resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask").provider,
-        model=resolve_provider_runtime(session, workspace_id=ask_run.workspace_id, capability="ask").model,
+        provider=runtime.provider,
+        model=runtime.model,
         input_tokens=usage_estimate.estimated_input_tokens,
         output_tokens=usage_estimate.estimated_output_tokens,
         estimated_cost=usage_estimate.estimated_cost,
@@ -398,6 +412,31 @@ def run_platform_revise(
         suggested_text = build_fallback_revision(payload.selected_text, payload.instruction)
         rationale = "Suggested language based on the selected clause and the closest grounded document context."
 
+    runtime = resolve_provider_runtime(session, workspace_id=revise_run.workspace_id, capability="revise")
+    generation = generate_provider_text(
+        session,
+        workspace_id=revise_run.workspace_id,
+        runtime=runtime,
+        instructions=(
+            "You are a legal drafting assistant. Return JSON only with keys suggested_text and rationale. "
+            "Draft suggested language, not legal advice. Use only the selected clause, cited context, playbook guidance, and clause-bank language provided."
+        ),
+        prompt=build_revise_provider_prompt(
+            instruction=payload.instruction,
+            selected_text=payload.selected_text,
+            baseline_suggestion=suggested_text,
+            baseline_rationale=rationale,
+            segments=selected_segments,
+            clause_matches=clause_matches,
+        ),
+        max_output_tokens=700,
+    )
+    if generation:
+        provider_revision = parse_provider_revision(generation.text)
+        if provider_revision:
+            suggested_text = provider_revision["suggested_text"]
+            rationale = provider_revision["rationale"]
+
     if clause_matches:
         preference = summarize_preference_signals(
             session,
@@ -452,7 +491,6 @@ def run_platform_revise(
         input_texts=[payload.instruction, payload.selected_text],
         output_texts=[revise_run.suggested_text or "", revise_run.rationale or ""],
     )
-    runtime = resolve_provider_runtime(session, workspace_id=revise_run.workspace_id, capability="revise")
     record_usage_ledger(
         session,
         workspace_id=revise_run.workspace_id,
@@ -743,6 +781,25 @@ def build_ask_answer(*, question: str, segments: list[AssistSegment]) -> str:
     return answer[:320].rstrip()
 
 
+def build_ask_provider_prompt(*, question: str, segments: list[AssistSegment]) -> str:
+    excerpts = "\n\n".join(
+        f"[{build_citation_label(segment)}]\n{segment.text[:1400]}"
+        for segment in segments[:3]
+    )
+    return (
+        f"Question:\n{question.strip()}\n\n"
+        f"Cited excerpts:\n{excerpts}\n\n"
+        "Write a short answer supported only by the cited excerpts. If the excerpts do not support the answer, say so."
+    )
+
+
+def sanitize_ask_answer(text: str) -> str:
+    normalized = " ".join(text.split())
+    if not normalized:
+        return "I can't support a factual answer to that question from the current document."
+    return normalized[:420].rstrip()
+
+
 def build_fallback_revision(selected_text: str, instruction: str) -> str:
     instruction_lower = instruction.lower()
     for issue_type, text in ISSUE_TYPE_FALLBACKS.items():
@@ -753,6 +810,58 @@ def build_fallback_revision(selected_text: str, instruction: str) -> str:
     if "customer" in instruction_lower or "narrow" in instruction_lower:
         return "This clause is revised as suggested draft language: the vendor right is limited to what is reasonably necessary, subject to prior written notice, a reasonable cure period, and continuing responsibility for third parties and data protection obligations."
     return f"This clause is revised as suggested draft language: {selected_text.strip()}"
+
+
+def build_revise_provider_prompt(
+    *,
+    instruction: str,
+    selected_text: str,
+    baseline_suggestion: str,
+    baseline_rationale: str,
+    segments: list[AssistSegment],
+    clause_matches: list[ClauseBankMatch],
+) -> str:
+    cited_context = "\n\n".join(
+        f"[{build_citation_label(segment)}]\n{segment.text[:1200]}"
+        for segment in segments[:3]
+    ) or "No cited context was retrieved."
+    clause_bank = "\n\n".join(
+        f"[{match.title}]\n{match.text[:1200]}"
+        for match in clause_matches[:3]
+    ) or "No clause-bank language was provided."
+    return (
+        f"Instruction:\n{instruction.strip()}\n\n"
+        f"Selected clause:\n{selected_text.strip()}\n\n"
+        f"Baseline suggested language:\n{baseline_suggestion.strip()}\n\n"
+        f"Baseline rationale:\n{baseline_rationale.strip()}\n\n"
+        f"Clause-bank language:\n{clause_bank}\n\n"
+        f"Cited document context:\n{cited_context}\n\n"
+        "Return compact JSON only. The suggested_text must be a complete replacement clause or sentence."
+    )
+
+
+def parse_provider_revision(text: str) -> dict[str, str] | None:
+    raw = text.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    suggested_text = payload.get("suggested_text")
+    rationale = payload.get("rationale")
+    if not isinstance(suggested_text, str) or not suggested_text.strip():
+        return None
+    if not isinstance(rationale, str) or not rationale.strip():
+        rationale = "Provider-generated suggested language based on the selected clause and cited context."
+    return {
+        "suggested_text": suggested_text.strip(),
+        "rationale": rationale.strip(),
+    }
 
 
 def enforce_revise_guardrails(rationale: str) -> str:

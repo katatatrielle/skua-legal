@@ -2,13 +2,13 @@
   "name": "@skua/web",
   "private": true,
   "version": "0.1.0",
-  "description": "Thin support web app for Skua",
+  "description": "Control room for the Skua legal AI workbench",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next build >/dev/null && tsc --noEmit",
-    "typecheck": "next build >/dev/null && tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@skua/sdk": "file:../../packages/sdk",

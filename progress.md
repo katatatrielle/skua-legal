@@ -1,5 +1,25 @@
 # Progress Log
 
+## Session: 2026-04-27
+
+### Phase 41: Secure Legal AI Workbench Reset
+- **Status:** in progress
+- Actions taken:
+  - Rewrote the root README around Skua as a secure legal AI workbench for confidential Word-based legal work.
+  - Added `docs/specs/secure-legal-ai-workbench-v1.md` as the active product contract and marked the solo-first contract-copilot spec superseded.
+  - Removed the stale `apps/review` and `apps/chat` tracked package files from the active repo shape.
+  - Reset the Word add-in visible navigation to `Assistant`, `Memory`, and `Controls`.
+  - Added assistant modes for `Ask`, `Draft`, and `Review` while preserving the existing run/apply/memory implementation paths.
+  - Added a visible data-boundary strip in the Word assistant surface for provider, plan, scope, and retention posture.
+  - Reframed the web app as a control room and stopped loading DD query/workflow/report state in the active web bootstrap path.
+  - Updated app/package metadata, manifests, and service docs to match the new wedge.
+  - Removed stale duplicate surfaces and old feature packages: `apps/review`, `apps/chat`, `services/dd-api`, web DD proxy routes, Word legacy proxy routes, `packages/workflows`, and `packages/standards`.
+  - Removed public API route handlers for old workflow, DD-report, query-run, and standards endpoints from `services/api/app/main.py`.
+- Verification:
+  - `npm test`
+  - `curl --max-time 15 -I http://localhost:3000`
+  - `curl --max-time 15 -I http://localhost:3001`
+
 ## Session: 2026-04-20
 
 ### Phase 34: Phase 3 Ingestion, Parsing, and Anchors
@@ -912,6 +932,21 @@
 | Review app typecheck after Phase 10 dashboard additions | `npm run typecheck:web` | Support web app still typechecks after release-criteria and pilot-kit panels were added | Passed | pass |
 | Word add-in typecheck after Phase 10 docs-only changes | `npm run typecheck:word-addin` | Word add-in still typechecks with the new pilot docs and unchanged host UI surface | Passed | pass |
 | Root test script after Phase 10 pilot readiness work | `npm test` | Repo-wide checks remain green after end-to-end tests, release dashboard wiring, and pilot-kit docs | Passed with `22 passed` API suite plus clean web/add-in typechecks and API compile | pass |
+| Root test script after Phase 41 data-boundary work | `npm test` | Web and Word typechecks, API suite, and API compile remain green after spend-estimate/data-boundary schema and Word two-step run changes | Passed with `22 passed` API suite plus clean web/add-in typechecks and API compile | pass |
+| Local web runtime after Phase 41 restart | `curl --max-time 15 -I http://localhost:3000` | Control room responds after clearing stale Next dev cache and restarting | `200 OK` | pass |
+| Local Word add-in runtime after Phase 41 restart | `curl --max-time 15 -I http://localhost:3001` | Word task pane responds after clearing stale Next dev cache and restarting | `200 OK` | pass |
+| Local API runtime after Phase 41 restart | `curl --max-time 10 http://127.0.0.1:8000/healthz` | API is available for Word add-in proxy calls | `{"status":"ok"}` | pass |
+| Root test script after Phase 42 provider/privacy work | `npm test` | Web and Word typechecks, API suite, and API compile remain green after provider bridge, Anthropic provider config, dev script, and privacy docs | Passed with `24 passed` API suite plus clean web/add-in typechecks and API compile | pass |
+| Local web runtime after Phase 42 restart | `curl --max-time 15 -I http://localhost:3000` | Control room responds after clearing stale Next dev cache and restarting | `200 OK` | pass |
+| Local Word add-in runtime after Phase 42 restart | `curl --max-time 15 -I http://localhost:3001` | Word task pane responds after clearing stale Next dev cache and restarting | `200 OK` | pass |
+| Local API runtime after Phase 42 work | `curl --max-time 10 http://127.0.0.1:8000/healthz` | API remains available after provider bridge changes | `{"status":"ok"}` | pass |
+| Word add-in HTTPS runtime after preview fix | `curl -k -I https://localhost:3001` | Word manifest target serves HTTPS instead of falling back to HTTP | `200 OK` | pass |
+| Word add-in HTML after preview fix | `curl -k https://localhost:3001` | Task pane renders the Skua workbench instead of a Next 500 page | `200` with `Secure legal AI workbench` content | pass |
+| Word add-in typecheck after script changes | `npm --workspace @skua/word-addin run typecheck` | Add-in still typechecks after HTTPS cert and script changes | Passed | pass |
+| Web typecheck after dev-cache fix | `npm --workspace @skua/web run typecheck` | Support app still typechecks after removing build-backed typecheck scripts | Passed | pass |
+| Root test script after preview fix | `npm test` | Repo-wide checks still pass without corrupting live Next dev caches | Passed with `24 passed` API suite plus clean web/add-in typechecks and API compile | pass |
+| Hosting/model-routing plan | Official provider/privacy docs plus repo spec update | Produce a concrete Canada/Ontario hosting, compute-provider, and model-cascade plan | Added `docs/privacy/hosting-and-model-routing-plan.md` and linked it from the active product contract | pass |
+| Qwen hosting route docs | Docs update | Reflect self-hosted Qwen as a named Canada-resident open-model route and distinguish it from managed Qwen routes | Updated privacy requirements, hosting/model-routing plan, active product spec, findings, and task plan | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -930,6 +965,12 @@
 | 2026-04-20 | Platform audit-event route initially collided with the legacy repository `list_audit_events` import | 1 | Aliased the platform audit helper import and routed the endpoint to the platform-specific implementation. |
 | 2026-04-20 | Support web billing/trust panel wiring initially failed on a missing comma in the expanded props destructuring | 1 | Fixed the destructuring syntax and reran the web typecheck. |
 | 2026-04-20 | The support web billing panel still depended on an authenticated user even though the web surface uses a support token | 1 | Allowed billing and release-criteria routes to authorize via support token or workspace auth and updated the support web fetch headers. |
+| 2026-04-27 | Hot-reloaded Next dev servers returned a missing React Client Manifest module after the schema/UI changes | 1 | Stopped both dev servers, cleared `apps/web/.next` and `apps/word-addin/.next`, restarted on ports 3000 and 3001, and rechecked both URLs. |
+| 2026-04-27 | `npm run dev:api` failed because `uvicorn` was not on PATH in this shell | 1 | Started the API through `services/api/.venv/bin/python -m uvicorn app.main:app --reload` and verified `/healthz`. |
+| 2026-04-27 | Running `npm test` while Next dev servers were active caused the same stale React Client Manifest 500s on ports 3000 and 3001 | 1 | Killed the stale Next processes by port, cleared both `.next` directories, restarted both dev servers, and rechecked both URLs. |
+| 2026-04-27 | Word manifest targeted `https://localhost:3001`, but the dev server had fallen back to plain HTTP after Next's automatic certificate generation requested a sudo password | 1 | Added an explicit repo-local localhost cert generator, started Next with the generated key/cert, ignored local PEMs, and verified the HTTPS endpoint. |
+| 2026-04-27 | Browser preview still rejected the generated cert with `ERR_CERT_AUTHORITY_INVALID` | 1 | Left browser security intact; real Word/browser host testing requires trusting `apps/word-addin/certificates/localhost.pem` or using a trusted `mkcert` certificate. |
+| 2026-04-27 | Running `next build` inside `typecheck` left active dev servers with stale React Client Manifest and `__webpack_modules__[moduleId] is not a function` failures | 1 | Changed web and Word `typecheck`/`lint` scripts to run `tsc --noEmit`, then cleared `.next`, restarted the add-in server, and reran `npm test`. |
 
 ## 5-Question Reboot Check
 | Question | Answer |

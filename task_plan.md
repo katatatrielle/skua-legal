@@ -1,12 +1,22 @@
 # Task Plan: Skua Solo-First Contract Copilot Reset
 
 ## Goal
-Reset the repo around the solo-first, Word-native contract copilot and implement the first execution slice: rename repo boundaries to match the v1 product story, remove non-v1 surfaces, narrow the visible UI to Review, Ask, Revise, Saved Clauses, and Settings, and keep the stack runnable after the transition.
+Reset the repo around Skua as a secure legal AI workbench: a Word-native way for lawyers to use frontier models on confidential client documents with citations, suggested edits, provider controls, PII/data-boundary posture, auditability, deletion, and workspace memory.
 
 ## Current Phase
-Phase 37
+Phase 42
 
 ## Phases
+
+### Phase 41: Secure Legal AI Workbench Reset
+- [x] Reframe active docs and package metadata around the secure legal AI workbench wedge
+- [x] Remove stale `apps/review` and `apps/chat` package surfaces from the active repo shape
+- [x] Reset the Word add-in visible IA to Assistant, Memory, and Controls
+- [x] Keep Ask, Draft, and Review as assistant modes backed by the existing useful platform routes
+- [x] Trim the support web app away from DD workflow fetches and reframe it as a control room
+- [x] Remove stale DD workflow, standards, duplicate app, duplicate service packages, and old public API routes from the active tree
+- [x] Verify typechecks/tests and update this phase with the results
+- **Status:** complete
 
 ### Phase 37: Phase 6 Word Add-in Core Experience
 - [x] Add add-in auth/session handling and workspace selection against the platform APIs
@@ -384,4 +394,43 @@ Phase 37
 - [x] Add pilot kit documentation, sample matters/contracts, and an issue-reporting flow
 - [x] Write the full computer-control execution checklist for the later Word host run
 - [ ] Run the later manual Computer Use pass on live Word hosts
+- **Status:** complete
+
+### Phase 41: Data Boundary and Cursor-Like Assistant Loop
+- [x] Add a first-class data-boundary record to spend estimates
+- [x] Include synced document segments and selected playbooks in pre-run estimates
+- [x] Surface provider, plan, scope, sensitivity flags, storage, training, retention, and cost in the Word assistant
+- [x] Require a two-step Word run flow: review boundary first, run only when the prepared boundary still matches
+- [x] Cover BYOK boundary behavior and PII detection in API tests
+- [x] Verify repo-wide tests and restart local API/web/add-in servers
+- **Status:** complete
+
+### Phase 42: Provider Bridge and Canada/Ontario Privacy Posture
+- [x] Fix the API dev script so it starts through the API virtualenv
+- [x] Add OpenAI/Anthropic provider bridge plumbing behind `SKUA_PROVIDER_BRIDGE_MODE=live`
+- [x] Keep deterministic assistant fallback as the default local/test mode
+- [x] Route Ask and Draft through the provider bridge when live provider credentials are available
+- [x] Add Anthropic provider-policy defaults and test coverage
+- [x] Research Canada/Ontario privacy requirements from primary sources
+- [x] Add a Canada/Ontario privacy requirements document and link it from the active product contract
+- [x] Verify repo-wide tests and restart local API/web/add-in servers
+- **Status:** complete
+
+### Phase 43: Word Preview Recovery and Scope Correction
+- [x] Restore `https://localhost:3001` for the Word manifest target with an explicit local cert
+- [x] Document the certificate trust step needed for real Word/browser host testing
+- [x] Stop typecheck scripts from running `next build` against active dev caches
+- [x] Verify Word add-in HTTPS response, Word add-in typecheck, web typecheck, and repo-wide tests
+- [x] Re-anchor the product direction as Word-native Cursor-style model work with privacy controls inside the run loop
+- **Status:** complete
+
+### Phase 44: Privacy Hosting and Model Routing Plan
+- [x] Research current Canada-capable cloud/model providers from official sources
+- [x] Define data classes for public, internal, anonymized planning, matter metadata, client legal content, and restricted sensitive data
+- [x] Choose Azure Canada as the recommended v1 host and AWS Canada as the first alternate
+- [x] Define the provider registry and matter compliance profile needed for policy enforcement
+- [x] Define the model cascade for local, Canada-resident, external anonymized, and explicit-escalation routes
+- [x] Add `self_hosted_qwen_ca` as the named Canada-resident open-model route and distinguish it from managed Qwen routes
+- [x] Add the lawyer UI requirements that expose policy at the point of work
+- [x] Link the routing posture from the active product contract
 - **Status:** complete

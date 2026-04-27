@@ -846,6 +846,16 @@ export interface PlatformSpendEstimateRequest {
   playbook_id?: string | null;
 }
 
+export interface PlatformDataBoundaryRecord {
+  scope_label: string;
+  input_summary: string[];
+  provider_policy: string[];
+  storage_policy: string[];
+  sensitivity_flags: string[];
+  training_policy: string;
+  retention_policy: string;
+}
+
 export interface PlatformSpendEstimateRecord {
   workspace_id: string;
   run_type: string;
@@ -863,6 +873,7 @@ export interface PlatformSpendEstimateRecord {
   warning: boolean;
   blocked: boolean;
   message: string;
+  data_boundary?: PlatformDataBoundaryRecord | null;
 }
 
 export interface PlatformUsageLedgerRecord {

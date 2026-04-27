@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -142,7 +143,7 @@ from app.platform_ops import (
     list_matters,
 )
 from app.platform_provider import estimate_usage, resolve_provider_runtime, summarize_usage_for_workspace
-from app.platform_models import Base, Document, Matter, User
+from app.platform_models import Base, Document, DocumentSegment, Matter, Playbook, User
 from app.platform_seed import seed_platform_dev_data
 from app.platform_service import (
     build_platform_user_record,
@@ -308,16 +309,6 @@ def healthz() -> HealthResponse:
 @app.get("/api/v1/playbooks", response_model=list[PlaybookRecord])
 def get_playbooks() -> list[PlaybookRecord]:
     return load_playbooks()
-
-
-@app.get("/api/v1/workflows/templates", response_model=list[WorkflowTemplateRecord])
-def get_workflow_templates() -> list[WorkflowTemplateRecord]:
-    return load_workflow_templates()
-
-
-@app.get("/api/v1/standards/templates", response_model=list[StandardsTemplateRecord])
-def get_standards_templates() -> list[StandardsTemplateRecord]:
-    return load_standards_templates()
 
 
 @app.get("/api/v1/playbooks/saved-notes", response_model=list[PlaybookSavedNoteRecord])
@@ -1046,13 +1037,10 @@ def post_platform_spend_estimate(
     require_current_user(request)
     require_workspace_access(request, payload.workspace_id)
     with platform_session() as session:
+        if payload.run_type not in {"ask", "revise", "review"}:
+            raise HTTPException(status_code=400, detail="run_type must be ask, revise, or review.")
         runtime = resolve_provider_runtime(session, workspace_id=payload.workspace_id, capability=payload.run_type)
-        input_texts = [
-            payload.selection_text or "",
-            payload.question or "",
-            payload.instruction or "",
-            payload.playbook_id or "",
-        ]
+        input_texts, scope_label = build_spend_estimate_inputs(session, payload)
         return estimate_usage(
             session,
             workspace_id=payload.workspace_id,
@@ -1060,7 +1048,48 @@ def post_platform_spend_estimate(
             runtime=runtime,
             input_texts=input_texts,
             output_texts=["estimated output"],
+            scope_label=scope_label,
         )
+
+
+def build_spend_estimate_inputs(
+    session,
+    payload: PlatformSpendEstimateRequest,
+) -> tuple[list[str], str]:
+    input_texts = [
+        payload.selection_text or "",
+        payload.question or "",
+        payload.instruction or "",
+    ]
+    scope_label = "prompt only"
+
+    if payload.document_version_id:
+        detail = get_platform_document_version_detail(
+            session,
+            document_version_id=payload.document_version_id,
+        )
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Document version not found.")
+        if detail.document_version.workspace_id != payload.workspace_id:
+            raise HTTPException(status_code=400, detail="Document version does not belong to the workspace.")
+        segment_texts = list(
+            session.execute(
+                select(DocumentSegment.text)
+                .where(DocumentSegment.document_version_id == payload.document_version_id)
+                .order_by(DocumentSegment.ordinal.asc())
+            ).scalars()
+        )
+        input_texts.extend(segment_texts)
+        scope_label = "the current selection" if payload.selection_text else "the synced document"
+
+    if payload.playbook_id:
+        playbook = session.execute(select(Playbook).where(Playbook.id == payload.playbook_id)).scalar_one_or_none()
+        if playbook is None:
+            raise HTTPException(status_code=404, detail="Playbook not found.")
+        input_texts.append(json.dumps(playbook.content_json or {}))
+        scope_label = f"{scope_label} plus the selected playbook"
+
+    return input_texts, scope_label
 
 
 @app.get(
@@ -1278,163 +1307,6 @@ def post_library_search(payload: LibrarySearchRequest) -> list[LibraryItemRecord
     if not payload.query.strip():
         raise HTTPException(status_code=400, detail="Library search query is required")
     return search_library_items(payload)
-
-
-@app.get("/api/v1/projects/{project_id}/queries/runs", response_model=list[QueryRunRecord])
-def get_project_query_run_list(project_id: str) -> list[QueryRunRecord]:
-    project = get_project(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return list_project_query_runs(project_id)
-
-
-@app.get("/api/v1/projects/{project_id}/workflows/runs", response_model=list[WorkflowRunRecord])
-def get_project_workflow_run_list(project_id: str) -> list[WorkflowRunRecord]:
-    project = get_project(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return list_project_workflow_runs(project_id)
-
-
-@app.post("/api/v1/queries/runs", response_model=QueryRunRecord)
-def post_query_run(payload: QueryRunCreateRequest) -> QueryRunRecord:
-    if not payload.document_version_ids:
-        raise HTTPException(status_code=400, detail="At least one document is required")
-    if not [question for question in payload.questions if question.strip()]:
-        raise HTTPException(status_code=400, detail="At least one question is required")
-    try:
-        return create_query_run(payload)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-
-@app.get("/api/v1/queries/runs/{query_run_id}", response_model=QueryRunRecord)
-def get_query_run_detail(query_run_id: str) -> QueryRunRecord:
-    query_run = get_query_run(query_run_id)
-    if query_run is None:
-        raise HTTPException(status_code=404, detail="Query run not found")
-    return query_run
-
-
-@app.get(
-    "/api/v1/queries/runs/{query_run_id}/export",
-    response_class=PlainTextResponse,
-)
-def get_query_run_export(query_run_id: str) -> PlainTextResponse:
-    csv_content = export_query_run_csv(query_run_id)
-    if csv_content is None:
-        raise HTTPException(status_code=404, detail="Query run not found")
-    response = PlainTextResponse(csv_content, media_type="text/csv")
-    response.headers["Content-Disposition"] = f'attachment; filename="{query_run_id}.csv"'
-    return response
-
-
-@app.post("/api/v1/workflows/runs", response_model=WorkflowRunRecord)
-def post_workflow_run(payload: WorkflowRunCreateRequest) -> WorkflowRunRecord:
-    if not payload.document_version_ids:
-        raise HTTPException(status_code=400, detail="At least one document is required")
-    try:
-        return create_workflow_run(payload)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-
-@app.get("/api/v1/workflows/runs/{workflow_run_id}", response_model=WorkflowRunRecord)
-def get_workflow_run_detail(workflow_run_id: str) -> WorkflowRunRecord:
-    workflow_run = get_workflow_run(workflow_run_id)
-    if workflow_run is None:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-    return workflow_run
-
-
-@app.put("/api/v1/workflows/runs/{workflow_run_id}", response_model=WorkflowRunRecord)
-def put_workflow_run_detail(
-    workflow_run_id: str,
-    payload: WorkflowRunUpdateRequest,
-) -> WorkflowRunRecord:
-    workflow_run = update_workflow_run(workflow_run_id, payload)
-    if workflow_run is None:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-    return workflow_run
-
-
-@app.post("/api/v1/workflows/runs/{workflow_run_id}/rerun", response_model=WorkflowRunRecord)
-def post_workflow_run_rerun(
-    workflow_run_id: str,
-    payload: WorkflowRunRerunRequest | None = None,
-) -> WorkflowRunRecord:
-    workflow_run = rerun_workflow_run(workflow_run_id, payload or WorkflowRunRerunRequest())
-    if workflow_run is None:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-    return workflow_run
-
-
-@app.get("/api/v1/workflows/runs/{workflow_run_id}/export")
-def get_workflow_run_export(workflow_run_id: str, format: str = Query(default="xlsx")) -> Response:
-    if format != "xlsx":
-        raise HTTPException(status_code=400, detail="Unsupported workflow export format")
-    export_record = export_workflow_run_xlsx(workflow_run_id)
-    if export_record is None:
-        raise HTTPException(status_code=404, detail="Workflow run export not found")
-    content, media_type, filename = export_record
-    response = Response(content=content, media_type=media_type)
-    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
-
-
-@app.get("/api/v1/dd/reports/{dd_report_id}", response_model=DdReportRecord)
-def get_dd_report_detail(dd_report_id: str) -> DdReportRecord:
-    dd_report = get_dd_report(dd_report_id)
-    if dd_report is None:
-        raise HTTPException(status_code=404, detail="DD report not found")
-    return dd_report
-
-
-@app.put("/api/v1/dd/reports/{dd_report_id}", response_model=DdReportRecord)
-def put_dd_report_detail(
-    dd_report_id: str,
-    payload: DdReportUpdateRequest,
-) -> DdReportRecord:
-    dd_report = update_dd_report(dd_report_id, payload)
-    if dd_report is None:
-        raise HTTPException(status_code=404, detail="DD report not found")
-    return dd_report
-
-
-@app.get(
-    "/api/v1/dd/reports/{dd_report_id}/export",
-)
-def get_dd_report_export(
-    dd_report_id: str,
-    format: str = Query(default="memo"),
-) -> Response:
-    export_record = export_dd_report_artifact(dd_report_id, format)
-    if export_record is None:
-        raise HTTPException(status_code=404, detail="DD report export not found")
-    content, media_type, filename = export_record
-    response = Response(content=content, media_type=media_type)
-    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
-
-
-@app.post("/api/v1/standards/runs", response_model=StandardsRunRecord)
-def post_standards_run(payload: StandardsRunCreateRequest) -> StandardsRunRecord:
-    if not payload.selection_text.strip() and (
-        payload.selection_anchor is None or not payload.selection_anchor.quote.strip()
-    ):
-        raise HTTPException(status_code=400, detail="Selection text is required for standards review.")
-    try:
-        return create_standards_run(payload)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-
-@app.get("/api/v1/standards/runs/{standards_run_id}", response_model=StandardsRunRecord)
-def get_standards_run_detail(standards_run_id: str) -> StandardsRunRecord:
-    standards_run = get_standards_run(standards_run_id)
-    if standards_run is None:
-        raise HTTPException(status_code=404, detail="Standards run not found")
-    return standards_run
 
 
 @app.post("/api/v1/draft", response_model=DraftRunRecord)

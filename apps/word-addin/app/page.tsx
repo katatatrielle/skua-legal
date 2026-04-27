@@ -21,12 +21,15 @@ export default async function HomePage({
     ? resolved_search_params.scope[0]
     : resolved_search_params.scope;
   const initial_tab =
-    tab_param === "ask" ||
-    tab_param === "revise" ||
-    tab_param === "saved" ||
-    tab_param === "settings"
+    tab_param === "saved" || tab_param === "memory"
+      ? "memory"
+      : tab_param === "settings"
+        ? "settings"
+        : "assistant";
+  const initial_mode =
+    tab_param === "review" || tab_param === "revise" || tab_param === "ask"
       ? tab_param
-      : "review";
+      : "ask";
   const initial_scope =
     scope_param === "full_document" || scope_param === "selection"
       ? scope_param
@@ -34,6 +37,7 @@ export default async function HomePage({
 
   return (
     <WordTaskPane
+      initialMode={initial_mode}
       initialScope={initial_scope}
       initialTab={initial_tab}
     />

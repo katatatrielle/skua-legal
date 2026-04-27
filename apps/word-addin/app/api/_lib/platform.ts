@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const api_base_url =
-  process.env.SKUA_API_BASE_URL ??
-  process.env.DD_API_BASE_URL ??
-  "http://127.0.0.1:8000";
+const api_base_url = process.env.SKUA_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 const session_cookie_name = "skua_word_session";
 

@@ -1,31 +1,65 @@
 # Skua
 
-Skua is a solo-first, Word-native contract copilot.
+Skua is a secure legal AI workbench for lawyers who want Claude/Codex-style help on real client documents without losing control of confidential data.
 
-The v1 product is intentionally narrow:
+The v1 wedge is intentionally narrow:
 
-- review a contract in Word
-- ask a cited question about the current document
-- revise a clause into suggested language
-- save preferred clause language for later reuse
+- work inside Microsoft Word
+- ask cited questions about the current matter or selected clause
+- draft suggested language and apply it as a Word-native edit
+- run a bounded review when the lawyer asks for one
+- keep reusable legal language in workspace memory
+- make provider, PII, retention, deletion, cost, and audit posture visible before and after runs
 
-The web app is support-only. It is not the main workflow.
+The web app is a control room. It is not the main drafting or review workflow.
+
+## Product Contract
+
+Skua should feel closer to a legal version of Cursor than a legal-ops platform. A lawyer opens a matter, syncs the active Word document or selection, and works through one assistant surface with modes for ask, draft, and review.
+
+Every active feature must improve one of these things:
+
+- safe use of frontier models on client material
+- Word-native document work
+- source-grounded answers and edits
+- workspace memory
+- provider and data-boundary control
+
+Everything else is out of the active product path until the wedge is proven.
 
 ## Repo Shape
 
 ```text
 apps/
-  word-addin/  Primary product surface
-  web/         Thin support web app
+  word-addin/  Primary product surface: assistant, memory, controls
+  web/         Support/control room for matters, uploads, trust, billing, release checks
 services/
-  api/         FastAPI backend for review, ask, revise, citations, and memory
+  api/         FastAPI backend for auth, documents, citations, assistant runs, memory, trust, usage
   worker/      Background job runner
 packages/
-  playbooks/   File-backed starter playbooks
   prompts/     Prompt assets
   schemas/     Shared contracts
   sdk/         Typed API client helpers
 ```
+
+Useful retained code:
+
+- Word document and selection sync
+- parsing, segments, citations, and anchor relocation
+- review, ask, and revise run contracts
+- Word comments, redlines, insertion, copy, and undo helpers
+- workspace auth and memberships
+- provider config, BYOK validation, usage ledger, spend caps, trust profile, deletion, and audit events
+- workspace clause memory
+
+Removed from the active tree or left only as backend implementation inventory:
+
+- DD workflows and report generation
+- standards governance
+- broad web-workspace analysis flows
+- old pilot materials that assume the product is a contract review platform
+
+Do not reintroduce those paths unless they directly support the secure legal AI workbench wedge.
 
 ## Local Setup
 
@@ -55,7 +89,7 @@ npm run dev:api
 
 The API runs at `http://127.0.0.1:8000`.
 
-### 4. Start the support web app
+### 4. Start the control room
 
 ```bash
 SKUA_API_BASE_URL=http://127.0.0.1:8000 npm run dev:web
@@ -90,49 +124,37 @@ Useful worker modes:
 - `--max-jobs 5`
 - `--worker-name local-dev-worker`
 
-## Current v1 Implementation Baseline
+## Current v1 Baseline
 
 ### Word add-in
 
-- sign in, restore session, and switch active workspaces inside Word
-- sync the current document or selection into the platform from Word
-- review the current selection or full document with citation-linked findings
-- ask cited questions against current document context
-- revise a selected clause into suggested language
-- save preferred clause language into a workspace clause bank
-- apply comments, tracked-change redlines, fallback inserts, and host undo in Word
-- relocate anchors after document drift with best-match warnings
+- sign in and restore a session inside Word
+- choose the active workspace/matter
+- sync the current Word document or selection
+- use one assistant surface with ask, draft, and review modes
+- apply comments, tracked-change redlines, fallback inserts, and host undo
+- jump from citations to the best current Word location
+- save and reuse workspace legal memory
+- view provider policy, spend, deletion controls, and trust posture
 
-### Web app
+### Control room
 
-- create and choose workspaces
-- upload support-side PDF and DOCX files
-- inspect findings, citations, memo sections, and document state
-- view billing, trust, support-admin, and release-criteria status for a pilot workspace
+- choose workspaces and upload support-side documents
+- inspect cited findings and document status
+- view billing, trust, support-admin, and readiness status
+- keep operational controls out of the primary Word workflow
 
 ### API and worker
 
 - document upload and parsing
-- Postgres-ready platform schema with Alembic migrations and seed data
-- workspace auth, memberships, and provider-config storage
-- local or S3-backed source/artifact object storage
-- Redis/RQ-backed queueing with worker fallback to local polling
-- platform-native document ingest for web uploads and Word selection uploads
-- parsed segment storage for headings, clauses, paragraphs, and tables
-- anchor relocation and hybrid segment retrieval for cited downstream flows
-- file-backed platform playbooks synced into the database at startup
-- deterministic review runs with stored findings, citations, ranking, and apply artifacts
-- platform ask runs with short cited answers and unsupported-claim refusals
-- platform revise runs with suggested-language labeling, playbook defaults, automatic clause-bank retrieval, and clause-bank priority hooks
-- workspace clause-bank CRUD and preference-signal capture
-- review ranking that incorporates saved clauses and explicit preference signals
-- provider policy resolution, BYOK validation, encrypted provider-secret storage, usage ledgering, and spend-cap enforcement
-- billing summaries, spend estimates, trust-center data, audit trails, apply-event logging, support-admin overview routes, and release-criteria metrics
-- persisted review runs and suggestion actions
-- queued ask and revise runs
-- starter playbook loading
-- canonical project, document-version, job, and audit records
-- structured request logging plus request IDs
+- source/artifact object storage
+- workspace auth and memberships
+- provider policy resolution, BYOK validation, provider-secret storage, usage ledgering, and spend-cap enforcement
+- parsed segment storage, anchor relocation, and retrieval
+- review, ask, and revise runs with citation-aware outputs
+- clause memory CRUD and preference signals
+- trust-center data, audit trails, apply-event logging, support-admin overview routes, and readiness metrics
+- Redis/RQ-backed queueing with local worker fallback
 
 ## Environment Variables
 
@@ -142,10 +164,6 @@ Preferred variables:
 - `SKUA_ALLOWED_ORIGINS`
 - `SKUA_SUPPORT_TOKEN`
 - `SKUA_ENCRYPTION_SECRET`
-
-Compatibility fallback:
-
-- `DD_API_BASE_URL` still works for local clients during the transition
 
 See:
 
@@ -162,15 +180,11 @@ Infrastructure helpers:
 
 ## Documentation
 
-- [Solo-first v1 spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/solo-first-word-native-contract-copilot-v1.md)
-- [Word add-in Phase 6 QA matrix](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/word-addin-phase6-qa-matrix.md)
-- [Pilot kit](/Users/katerinamcmullen/Documents/GitHub/skua/docs/pilot/pilot-kit.md)
+- [Secure legal AI workbench spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/secure-legal-ai-workbench-v1.md)
+- [Legacy solo-first contract copilot spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/solo-first-word-native-contract-copilot-v1.md)
+- [Word add-in QA matrix](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/word-addin-phase6-qa-matrix.md)
 - [Computer-control test plan](/Users/katerinamcmullen/Documents/GitHub/skua/docs/testing/phase10-computer-control-test-plan.md)
-- [Legacy engineering spec](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-engineering-spec.md)
-- [Legacy endpoint contracts](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-endpoint-contracts.md)
-- [Legacy add-in wireframes](/Users/katerinamcmullen/Documents/GitHub/skua/docs/specs/open-contracts-word-addin-wireframes.md)
 
-## Notes
+## Reset Rule
 
-- The repo still contains older query, workflow, and standards code paths behind the scenes. They are no longer the primary product story.
-- Phases 1 through 10 of the solo-first reset are now in place: repo boundaries, visible v1 scope, platform schema/migrations, auth, storage, queueing, ingest/parsing/anchors, review, ask, revise, Word apply flows, workspace clause memory, pricing controls, trust surface, support/admin basics, end-to-end pilot checks, and release gates.
+When in doubt, ask whether the change helps a lawyer safely use a powerful AI model on a confidential Word document. If not, it belongs outside the active v1 path.

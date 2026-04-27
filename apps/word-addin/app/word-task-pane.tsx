@@ -37,7 +37,9 @@ import {
   undo_last_word_action
 } from "../lib/office";
 
-type TabId = "review" | "ask" | "revise" | "saved" | "settings";
+type TabId = "assistant" | "memory" | "settings";
+type AssistantMode = "ask" | "revise" | "review";
+type RunType = "ask" | "revise" | "review";
 type SyncScope = "full_document" | "selection";
 type SessionMode = "login" | "register";
 type LocalFindingStatus =
@@ -65,12 +67,22 @@ type StoredDocumentSession = {
   last_synced_at?: string | null;
 };
 
+type PreparedBoundary = {
+  run_type: RunType;
+  key: string;
+  estimate: PlatformSpendEstimateRecord;
+};
+
 const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "review", label: "Review" },
+  { id: "assistant", label: "Assistant" },
+  { id: "memory", label: "Memory" },
+  { id: "settings", label: "Controls" }
+];
+
+const assistant_modes: Array<{ id: AssistantMode; label: string }> = [
   { id: "ask", label: "Ask" },
-  { id: "revise", label: "Revise" },
-  { id: "saved", label: "Saved Clauses" },
-  { id: "settings", label: "Settings" }
+  { id: "revise", label: "Draft" },
+  { id: "review", label: "Review" }
 ];
 
 const workspace_storage_key = "skua-word-active-workspace";
@@ -82,13 +94,16 @@ const supported_contract_types = [
 ];
 
 export function WordTaskPane({
-  initialTab = "review",
+  initialTab = "assistant",
+  initialMode = "ask",
   initialScope = "selection"
 }: {
   initialTab?: TabId;
+  initialMode?: AssistantMode;
   initialScope?: "selection" | "full_document";
 }) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>(initialMode);
   const [selectionState, setSelectionState] = useState<WordSelectionState | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -126,6 +141,7 @@ export function WordTaskPane({
   const [isSavingProvider, setIsSavingProvider] = useState(false);
   const [billingSummary, setBillingSummary] = useState<PlatformUsageSummaryRecord | null>(null);
   const [trustProfile, setTrustProfile] = useState<PlatformTrustRecord | null>(null);
+  const [preparedBoundary, setPreparedBoundary] = useState<PreparedBoundary | null>(null);
 
   const [documentVersions, setDocumentVersions] = useState<PlatformDocumentVersionRecord[]>([]);
   const [matters, setMatters] = useState<PlatformMatterRecord[]>([]);
@@ -524,7 +540,7 @@ export function WordTaskPane({
   }
 
   async function estimateRunCost(
-    runType: "review" | "ask" | "revise",
+    runType: RunType,
     payload: {
       document_version_id?: string | null;
       selection_text?: string | null;
@@ -552,6 +568,42 @@ export function WordTaskPane({
       throw new Error(await extract_error_message(response));
     }
     return (await response.json()) as PlatformSpendEstimateRecord;
+  }
+
+  async function confirmBoundaryOrPause(
+    runType: RunType,
+    payload: {
+      document_version_id?: string | null;
+      selection_text?: string | null;
+      question?: string | null;
+      instruction?: string | null;
+      playbook_id?: string | null;
+    }
+  ) {
+    const estimate = await estimateRunCost(runType, payload);
+    if (!estimate) {
+      return false;
+    }
+    const key = build_boundary_key(runType, payload, estimate);
+    if (estimate.blocked) {
+      setPreparedBoundary({
+        run_type: runType,
+        key,
+        estimate
+      });
+      throw new Error(estimate.message);
+    }
+    if (preparedBoundary?.run_type !== runType || preparedBoundary.key !== key) {
+      setPreparedBoundary({
+        run_type: runType,
+        key,
+        estimate
+      });
+      setActionMessage(`${estimate.message} Review the data boundary, then run ${runType === "revise" ? "Draft" : runType}.`);
+      return false;
+    }
+    setActionMessage(estimate.message);
+    return true;
   }
 
   async function handleAuthSubmit() {
@@ -853,12 +905,13 @@ export function WordTaskPane({
     setReviewError(null);
     try {
       const documentVersion = await ensureReviewDocumentVersion();
-      const estimate = await estimateRunCost("review", {
+      const boundaryPayload = {
         document_version_id: documentVersion.id,
         playbook_id: selectedPlaybookId
-      });
-      if (estimate) {
-        setActionMessage(estimate.message);
+      };
+      const boundaryConfirmed = await confirmBoundaryOrPause("review", boundaryPayload);
+      if (!boundaryConfirmed) {
+        return;
       }
       const response = await fetch("/api/platform/review-runs", {
         method: "POST",
@@ -888,6 +941,7 @@ export function WordTaskPane({
           ? `Review completed with ${completedRun.findings.length} finding(s).`
           : "Review completed with no findings for the current scope."
       );
+      setPreparedBoundary(null);
       await loadBillingSummary(activeWorkspaceId);
     } catch (error) {
       setReviewError(error instanceof Error ? error.message : "Unable to run Review.");
@@ -914,13 +968,14 @@ export function WordTaskPane({
     setAskError(null);
     try {
       const documentVersion = await ensureContextDocumentVersion(askScope);
-      const estimate = await estimateRunCost("ask", {
+      const boundaryPayload = {
         document_version_id: documentVersion.id,
         selection_text: askScope === "selection" ? selectionState?.selection_text.trim() : null,
         question: askQuestion.trim()
-      });
-      if (estimate) {
-        setActionMessage(estimate.message);
+      };
+      const boundaryConfirmed = await confirmBoundaryOrPause("ask", boundaryPayload);
+      if (!boundaryConfirmed) {
+        return;
       }
       const response = await fetch("/api/platform/ask-runs", {
         method: "POST",
@@ -949,6 +1004,7 @@ export function WordTaskPane({
           ? "Ask completed with cited support from the current document."
           : "Ask could not support a factual answer from the current document."
       );
+      setPreparedBoundary(null);
       await loadBillingSummary(activeWorkspaceId);
     } catch (error) {
       setAskError(error instanceof Error ? error.message : "Unable to run Ask.");
@@ -975,14 +1031,15 @@ export function WordTaskPane({
     setReviseError(null);
     try {
       const documentVersion = await ensureContextDocumentVersion("selection");
-      const estimate = await estimateRunCost("revise", {
+      const boundaryPayload = {
         document_version_id: documentVersion.id,
         selection_text: selectionState.selection_text.trim(),
         instruction: reviseInstruction.trim(),
         playbook_id: selectedPlaybookId || null
-      });
-      if (estimate) {
-        setActionMessage(estimate.message);
+      };
+      const boundaryConfirmed = await confirmBoundaryOrPause("revise", boundaryPayload);
+      if (!boundaryConfirmed) {
+        return;
       }
       const response = await fetch("/api/platform/revise-runs", {
         method: "POST",
@@ -1009,6 +1066,7 @@ export function WordTaskPane({
       );
       setReviseRun(completedRun);
       setActionMessage("Revise returned suggested language grounded in the current clause context.");
+      setPreparedBoundary(null);
       await loadBillingSummary(activeWorkspaceId);
     } catch (error) {
       setReviseError(error instanceof Error ? error.message : "Unable to run Revise.");
@@ -1376,9 +1434,9 @@ export function WordTaskPane({
       <section className="context-strip">
         <div>
           <p className="eyebrow">Skua / Word Add-in</p>
-          <h1>Word-native contract copilot</h1>
+          <h1>Secure legal AI workbench</h1>
           <p className="context-copy">
-            Review, ask, revise, citations, saved fallback language, and provider settings now run through the platform APIs from inside Word.
+            Use frontier-model help on client documents from Word, with citations, tracked edits, saved legal memory, provider controls, and a clear data boundary.
           </p>
         </div>
         <div className="ribbon-preview">
@@ -1454,12 +1512,12 @@ export function WordTaskPane({
             <div className="pane-title">
               <span className="app-badge">Skua</span>
               <div>
-                <strong>{currentWorkspace?.name ?? "Word workspace"}</strong>
+                <strong>{currentWorkspace?.name ?? "Matter workspace"}</strong>
                 <p>{selectionState?.document_name ?? "Current Word document"}</p>
               </div>
             </div>
             <p className="meta-line">
-              {sessionUser ? `${sessionUser.email} / ${sessionUser.workspace_ids.length} workspace(s)` : "Sign in from Settings to sync this document and run platform-backed tools."}
+              {sessionUser ? `${sessionUser.email} / ${sessionUser.workspace_ids.length} workspace(s)` : "Sign in from Controls to sync this document and run assistant actions."}
             </p>
           </header>
 
@@ -1477,15 +1535,15 @@ export function WordTaskPane({
           </nav>
 
           <div className="banner">
-            {activeTab === "review"
-              ? "Review findings stay citation-anchored and can be applied directly in Word."
-              : activeTab === "ask"
-                ? "Ask returns short cited answers or refuses unsupported factual claims."
-                : activeTab === "revise"
-                  ? "Revise labels every output as suggested language and keeps support separate from draft text."
-                  : activeTab === "saved"
-                    ? "Saved clauses are now workspace-scoped fallback language that can drive review and revise."
-                    : "Settings controls sign-in, workspace selection, and provider configuration."}
+            {activeTab === "assistant"
+              ? assistantMode === "ask"
+                ? "Ask uses the current matter context and returns cited answers or refuses unsupported factual claims."
+                : assistantMode === "revise"
+                  ? "Draft mode labels every edit as suggested language and applies it through Word-native controls."
+                  : "Review mode turns the current document or selection into citation-anchored findings."
+              : activeTab === "memory"
+                ? "Memory stores reusable legal language for this workspace without making it a separate product surface."
+                : "Controls expose sign-in, workspace choice, provider policy, billing, deletion, and trust posture."}
           </div>
 
           {selectionError ? <div className="inline-alert error">{selectionError}</div> : null}
@@ -1495,18 +1553,61 @@ export function WordTaskPane({
           {actionMessage ? <div className="inline-alert success">{actionMessage}</div> : null}
 
           <div className="pane-body">
-            {activeTab === "review" ? (
+            {activeTab === "assistant" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Review</p>
+                    <p className="section-label">Assistant mode</p>
+                    <h3>Work on the current Word context</h3>
+                  </div>
+                  <span className="status-pill">{assistantMode}</span>
+                </div>
+                <div className="mode-row" aria-label="Assistant modes">
+                  {assistant_modes.map((mode) => (
+                    <button
+                      className={assistantMode === mode.id ? "mode-button active" : "mode-button"}
+                      key={mode.id}
+                      onClick={() => setAssistantMode(mode.id)}
+                      type="button"
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="data-boundary">
+                  <div>
+                    <span>Provider</span>
+                    <strong>{preparedBoundary?.estimate.provider ?? providerConfigs[0]?.provider_name ?? "Hosted default"}</strong>
+                  </div>
+                  <div>
+                    <span>Plan</span>
+                    <strong>{preparedBoundary?.estimate.plan_type ?? billingSummary?.plan_type ?? "Policy pending"}</strong>
+                  </div>
+                  <div>
+                    <span>Scope</span>
+                    <strong>{preparedBoundary?.estimate.data_boundary?.scope_label ?? (selectionState?.selection_text.trim() ? "Selection available" : "Full document only")}</strong>
+                  </div>
+                  <div>
+                    <span>Sensitivity</span>
+                    <strong>{preparedBoundary?.estimate.data_boundary?.sensitivity_flags.join(", ") ?? "Estimate before run"}</strong>
+                  </div>
+                </div>
+                <BoundaryCard estimate={preparedBoundary?.estimate ?? null} trustProfile={trustProfile} />
+              </section>
+            ) : null}
+
+            {activeTab === "assistant" && assistantMode === "review" ? (
+              <section className="stack-section">
+                <div className="section-head">
+                  <div>
+                    <p className="section-label">Assistant / Review</p>
                     <h3>{reviewRun ? `${reviewRun.summary.total_findings} findings` : "Run a Word review"}</h3>
                   </div>
                   <span className="status-pill success">{reviewRun?.status ?? "ready"}</span>
                 </div>
 
                 {!sessionUser ? (
-                  <div className="empty-state">Sign in from Settings before running Review.</div>
+                  <div className="empty-state">Sign in from Controls before running Review.</div>
                 ) : (
                   <>
                     <div className="run-panel">
@@ -1527,7 +1628,7 @@ export function WordTaskPane({
                       </label>
                       <div className="action-row">
                         <button disabled={isRunningReview || isSyncingDocument} onClick={() => void runReview()} type="button">
-                          {isRunningReview ? "Running review..." : "Run review"}
+                          {isRunningReview ? "Running review..." : preparedBoundary?.run_type === "review" ? "Run review" : "Review boundary"}
                         </button>
                         <button className="ghost" disabled={isSyncingDocument} onClick={() => void syncCurrentSelection(reviewScope, true)} type="button">
                           Sync current scope
@@ -1658,18 +1759,18 @@ export function WordTaskPane({
               </section>
             ) : null}
 
-            {activeTab === "ask" ? (
+            {activeTab === "assistant" && assistantMode === "ask" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Ask</p>
+                    <p className="section-label">Assistant / Ask</p>
                     <h3>Short cited answers</h3>
                   </div>
                   <span className="status-pill">{askRun?.status ?? "ready"}</span>
                 </div>
 
                 {!sessionUser ? (
-                  <div className="empty-state">Sign in from Settings before running Ask.</div>
+                  <div className="empty-state">Sign in from Controls before running Ask.</div>
                 ) : (
                   <>
                     <div className="toggle-list">
@@ -1686,7 +1787,7 @@ export function WordTaskPane({
 
                     <div className="action-row">
                       <button disabled={isRunningAsk} onClick={() => void runAsk()} type="button">
-                        {isRunningAsk ? "Running Ask..." : "Ask"}
+                        {isRunningAsk ? "Running Ask..." : preparedBoundary?.run_type === "ask" ? "Ask" : "Review boundary"}
                       </button>
                     </div>
 
@@ -1718,18 +1819,18 @@ export function WordTaskPane({
               </section>
             ) : null}
 
-            {activeTab === "revise" ? (
+            {activeTab === "assistant" && assistantMode === "revise" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
-                    <p className="section-label">Revise</p>
+                    <p className="section-label">Assistant / Draft</p>
                     <h3>Suggested language with grounded support</h3>
                   </div>
                   <span className="status-pill">{reviseRun?.status ?? "ready"}</span>
                 </div>
 
                 {!sessionUser ? (
-                  <div className="empty-state">Sign in from Settings before running Revise.</div>
+                  <div className="empty-state">Sign in from Controls before drafting.</div>
                 ) : (
                   <>
                     <label className="field">
@@ -1771,7 +1872,7 @@ export function WordTaskPane({
 
                     <div className="action-row">
                       <button disabled={isRunningRevise} onClick={() => void runRevise()} type="button">
-                        {isRunningRevise ? "Running Revise..." : "Generate suggested language"}
+                        {isRunningRevise ? "Running Revise..." : preparedBoundary?.run_type === "revise" ? "Generate suggested language" : "Review boundary"}
                       </button>
                     </div>
 
@@ -1830,7 +1931,7 @@ export function WordTaskPane({
               </section>
             ) : null}
 
-            {activeTab === "saved" ? (
+            {activeTab === "memory" ? (
               <section className="stack-section">
                 <div className="section-head">
                   <div>
@@ -2190,6 +2291,67 @@ function Toggle({
   );
 }
 
+function BoundaryCard({
+  estimate,
+  trustProfile
+}: {
+  estimate: PlatformSpendEstimateRecord | null;
+  trustProfile: PlatformTrustRecord | null;
+}) {
+  if (!estimate?.data_boundary) {
+    return (
+      <div className="boundary-card">
+        <div className="section-head compact">
+          <div>
+            <p className="section-label">Data boundary</p>
+            <strong>Estimate required before a run</strong>
+          </div>
+          <span className="status-pill">pending</span>
+        </div>
+        <p className="muted-copy">
+          The next Assistant action first prepares provider, scope, sensitivity, cost, and retention details.
+        </p>
+        {trustProfile ? (
+          <p className="muted-copy">{trustProfile.training_policy}</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  const boundary = estimate.data_boundary;
+  return (
+    <div className="boundary-card">
+      <div className="section-head compact">
+        <div>
+          <p className="section-label">Data boundary</p>
+          <strong>{estimate.provider} / {estimate.model}</strong>
+        </div>
+        <span className={estimate.blocked ? "status-pill high" : estimate.warning ? "status-pill medium" : "status-pill success"}>
+          ${estimate.estimated_cost.toFixed(4)}
+        </span>
+      </div>
+      <div className="boundary-grid">
+        <BoundaryList title="Inputs" items={boundary.input_summary} />
+        <BoundaryList title="Provider" items={boundary.provider_policy} />
+        <BoundaryList title="Sensitivity" items={boundary.sensitivity_flags} />
+        <BoundaryList title="Storage" items={boundary.storage_policy.slice(0, 1)} />
+      </div>
+      <p className="muted-copy">{boundary.training_policy} {boundary.retention_policy}</p>
+    </div>
+  );
+}
+
+function BoundaryList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="boundary-list">
+      <span>{title}</span>
+      {items.map((item) => (
+        <p key={item}>{item}</p>
+      ))}
+    </div>
+  );
+}
+
 function build_sync_summary(session: StoredDocumentSession | null) {
   if (!session?.last_synced_at) {
     return {
@@ -2205,6 +2367,28 @@ function build_sync_summary(session: StoredDocumentSession | null) {
     title: `${session.last_sync_scope === "full_document" ? "Full document" : "Selection"} synced`,
     body: `${versionId ?? "snapshot"} at ${format_date(session.last_synced_at)}`
   };
+}
+
+function build_boundary_key(
+  runType: RunType,
+  payload: {
+    document_version_id?: string | null;
+    selection_text?: string | null;
+    question?: string | null;
+    instruction?: string | null;
+    playbook_id?: string | null;
+  },
+  estimate: PlatformSpendEstimateRecord
+) {
+  return JSON.stringify({
+    runType,
+    payload,
+    provider: estimate.provider,
+    model: estimate.model,
+    plan_type: estimate.plan_type,
+    estimated_input_tokens: estimate.estimated_input_tokens,
+    estimated_output_tokens: estimate.estimated_output_tokens
+  });
 }
 
 function build_document_identity(selectionState: WordSelectionState | null) {

@@ -126,9 +126,27 @@ def test_byok_provider_config_and_usage_billing_summary(platform_client: TestCli
         headers=headers,
         workspace_id=workspace_id,
         document_name="services.txt",
-        selection_text="Termination for Convenience. Customer may terminate on thirty days' prior written notice.",
+        selection_text="Termination for Convenience. Customer may terminate on thirty days' prior written notice. Notice contact: counsel@example.com.",
     )
     version_id = upload["document_version"]["id"]
+
+    estimate_response = platform_client.post(
+        "/api/v1/platform/spend-estimate",
+        headers=headers,
+        json={
+            "workspace_id": workspace_id,
+            "run_type": "ask",
+            "document_version_id": version_id,
+            "question": "Can the customer terminate for convenience?",
+        },
+    )
+    assert estimate_response.status_code == 200, estimate_response.text
+    estimate = estimate_response.json()
+    assert estimate["provider"] == "openai"
+    assert estimate["plan_type"] == "byok"
+    assert estimate["data_boundary"]["scope_label"] == "the synced document"
+    assert "email address" in estimate["data_boundary"]["sensitivity_flags"]
+    assert estimate["estimated_input_tokens"] > len("Can the customer terminate for convenience?") // 4
 
     ask_response = platform_client.post(
         "/api/v1/platform/ask-runs",
@@ -151,6 +169,30 @@ def test_byok_provider_config_and_usage_billing_summary(platform_client: TestCli
     assert billing["run_count"] >= 1
     assert billing["actual_cost"] > 0
     assert billing["recent_runs"][0]["provider"] == "openai"
+
+
+def test_anthropic_provider_config_uses_claude_defaults(platform_client: TestClient) -> None:
+    headers, workspace_id = _register_user(platform_client, "phase89-anthropic@example.com")
+    provider_response = platform_client.post(
+        "/api/v1/provider-configs",
+        headers=headers,
+        json={
+            "workspace_id": workspace_id,
+            "provider_name": "anthropic",
+            "encrypted_secret": "sk-ant-test-secret-123456",
+            "model_policy": {
+                "plan": "byok",
+                "monthly_warning_usd": 1.0,
+                "monthly_hard_cap_usd": 10.0,
+                "per_run_max_estimate_usd": 2.0,
+            },
+        },
+    )
+    assert provider_response.status_code == 200, provider_response.text
+    provider = provider_response.json()
+    assert provider["plan_type"] == "byok"
+    assert provider["model_policy"]["ask"] == "claude-sonnet-4-20250514"
+    assert provider["model_policy"]["review"] == "claude-sonnet-4-20250514"
 
 
 def test_spend_controls_block_over_limit_runs(platform_client: TestClient) -> None:

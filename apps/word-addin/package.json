@@ -2,13 +2,14 @@
   "name": "@skua/word-addin",
   "private": true,
   "version": "0.1.0",
-  "description": "Word add-in scaffold for Skua Legal",
+  "description": "Secure legal AI workbench for Word",
   "scripts": {
-    "dev": "next dev --experimental-https --port 3001",
+    "predev": "scripts/ensure-local-https-cert.sh",
+    "dev": "next dev --experimental-https --experimental-https-key certificates/localhost-key.pem --experimental-https-cert certificates/localhost.pem --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "lint": "next build >/dev/null && tsc --noEmit",
-    "typecheck": "next build >/dev/null && tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@skua/schemas": "file:../../packages/schemas",

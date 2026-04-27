@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -11,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    PlatformDataBoundaryRecord,
     PlatformSpendEstimateRecord,
     PlatformUsageLedgerRecord,
     PlatformUsageSummaryRecord,
@@ -24,13 +26,25 @@ SETTINGS = get_settings()
 MODEL_PRICING = {
     "gpt-5.4-mini": {"input_per_1k": 0.0006, "output_per_1k": 0.0018},
     "gpt-5.4": {"input_per_1k": 0.0030, "output_per_1k": 0.0090},
+    "claude-sonnet-4-20250514": {"input_per_1k": 0.0030, "output_per_1k": 0.0150},
+    "claude-3-7-sonnet-20250219": {"input_per_1k": 0.0030, "output_per_1k": 0.0150},
     "text-embedding-3-small": {"input_per_1k": 0.00002, "output_per_1k": 0.0},
 }
 SUPPORTED_PROVIDERS = {
     "openai": {
         "hosted_models": {"review": "gpt-5.4-mini", "ask": "gpt-5.4-mini", "revise": "gpt-5.4-mini", "embeddings": "text-embedding-3-small"},
         "byok_prefixes": ("sk-",),
+    },
+    "anthropic": {
+        "hosted_models": {"review": "claude-sonnet-4-20250514", "ask": "claude-sonnet-4-20250514", "revise": "claude-sonnet-4-20250514"},
+        "byok_prefixes": ("sk-ant-",),
     }
+}
+SENSITIVITY_PATTERNS = {
+    "email address": re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
+    "US SSN-like identifier": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+    "phone number": re.compile(r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b"),
+    "privileged/confidential marker": re.compile(r"\b(privileged|attorney-client|confidential|personal data|PII)\b", re.IGNORECASE),
 }
 DEFAULT_POLICY = {
     "review": "gpt-5.4-mini",
@@ -82,6 +96,10 @@ def validate_provider_config(*, provider_name: str, raw_secret: str | None, mode
     if provider not in SUPPORTED_PROVIDERS:
         raise ValueError(f"Unsupported provider '{provider_name}'.")
     policy = normalize_model_policy(model_policy)
+    provider_defaults = SUPPORTED_PROVIDERS[provider]["hosted_models"]
+    for capability in ("review", "ask", "revise", "embeddings"):
+        if capability not in (model_policy or {}) and capability in provider_defaults:
+            policy[capability] = provider_defaults[capability]
     requested_plan = str(policy.get("plan") or "").strip().lower()
     prefixes = SUPPORTED_PROVIDERS[provider]["byok_prefixes"]
     if requested_plan == "byok" or (raw_secret and raw_secret.startswith(prefixes)):
@@ -147,6 +165,26 @@ def resolve_provider_runtime(session: Session, *, workspace_id: str, capability:
     )
 
 
+def resolve_provider_secret(session: Session, runtime: ProviderRuntime) -> str | None:
+    provider = canonical_provider_name(runtime.provider)
+    if runtime.plan_type == "byok" and runtime.config_id:
+        config = session.execute(select(ProviderConfig).where(ProviderConfig.id == runtime.config_id)).scalar_one_or_none()
+        if config is not None:
+            return decrypt_secret(config.encrypted_secret)
+    if provider == "openai":
+        return SETTINGS.openai_api_key
+    if provider == "anthropic":
+        return SETTINGS.anthropic_api_key
+    return None
+
+
+def canonical_provider_name(provider: str) -> str:
+    normalized = provider.strip().lower()
+    if normalized == "hosted-openai":
+        return "openai"
+    return normalized
+
+
 def estimate_usage(
     session: Session,
     *,
@@ -155,6 +193,7 @@ def estimate_usage(
     runtime: ProviderRuntime,
     input_texts: list[str],
     output_texts: list[str],
+    scope_label: str = "run input",
 ) -> PlatformSpendEstimateRecord:
     input_tokens = sum(estimate_tokens(text) for text in input_texts if text)
     output_tokens = sum(estimate_tokens(text) for text in output_texts if text)
@@ -193,6 +232,12 @@ def estimate_usage(
         warning=warning,
         blocked=blocked,
         message=message,
+        data_boundary=build_data_boundary_record(
+            runtime=runtime,
+            run_type=run_type,
+            scope_label=scope_label,
+            input_texts=input_texts,
+        ),
     )
 
 
@@ -319,6 +364,48 @@ def mask_secret(secret: str | None) -> str | None:
     if len(raw) <= 6:
         return "*" * len(raw)
     return f"{raw[:3]}...{raw[-4:]}"
+
+
+def build_data_boundary_record(
+    *,
+    runtime: ProviderRuntime,
+    run_type: str,
+    scope_label: str,
+    input_texts: list[str],
+) -> PlatformDataBoundaryRecord:
+    non_empty_inputs = [text for text in input_texts if text and text.strip()]
+    input_summary = [
+        f"{run_type.title()} receives {scope_label}.",
+        f"{len(non_empty_inputs)} prompt/document input(s) are included in this estimate.",
+    ]
+    if runtime.plan_type == "byok":
+        provider_policy = [
+            f"Provider: {runtime.provider}. Model: {runtime.model}.",
+            "Runs use the workspace BYOK credential and are marked as workspace-owned usage.",
+        ]
+    else:
+        provider_policy = [
+            f"Provider: {runtime.provider}. Model: {runtime.model}.",
+            "Runs use Skua-managed hosted credentials under the workspace billing policy.",
+        ]
+    return PlatformDataBoundaryRecord(
+        scope_label=scope_label,
+        input_summary=input_summary,
+        provider_policy=provider_policy,
+        storage_policy=[
+            "Source text, parsed segments, run outputs, citations, usage records, and audit events are stored in the workspace.",
+            "Deleting the synced document or matter removes stored source objects and related platform records.",
+        ],
+        sensitivity_flags=detect_sensitivity_flags(input_texts),
+        training_policy="Customer document content is not used to train Skua models.",
+        retention_policy=f"Usage and audit records are retained for {SETTINGS.retention_days} days unless deleted earlier for support reasons.",
+    )
+
+
+def detect_sensitivity_flags(input_texts: list[str]) -> list[str]:
+    combined = "\n".join(text for text in input_texts if text)
+    flags = [label for label, pattern in SENSITIVITY_PATTERNS.items() if pattern.search(combined)]
+    return flags or ["no obvious PII markers detected"]
 
 
 def estimate_tokens(text: str | None) -> int:

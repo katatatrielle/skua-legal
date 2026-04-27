@@ -1,5 +1,5 @@
-import { load_review_workspace } from "../lib/api";
-import { ReviewWorkspace } from "./review-workspace";
+import { load_control_room } from "../lib/api";
+import { ControlRoom } from "./review-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -15,24 +15,17 @@ export default async function HomePage({
     const workspaceParam = Array.isArray(resolvedSearchParams.workspace)
       ? resolvedSearchParams.workspace[0]
       : resolvedSearchParams.workspace;
-    const apiBaseUrl =
-      process.env.SKUA_API_BASE_URL ?? process.env.DD_API_BASE_URL ?? "http://127.0.0.1:8000";
+    const apiBaseUrl = process.env.SKUA_API_BASE_URL ?? "http://127.0.0.1:8000";
     const {
       workspace,
       output,
       workspaces,
       selectedWorkspaceId,
-      project,
-      documentVersions,
-      queryRuns,
-      workflowRuns,
-      workflowTemplates,
-      initialDdReports,
       billingSummary,
       trustProfile,
       adminOverview,
       releaseCriteria
-    } = await load_review_workspace(
+    } = await load_control_room(
       workspaceParam
     );
 
@@ -41,10 +34,10 @@ export default async function HomePage({
         <main className="page-shell">
           <section className="hero-panel">
             <div className="hero-copy">
-              <p className="eyebrow">Skua / Support Web App</p>
+              <p className="eyebrow">Skua / Control Room</p>
               <h1>No matter data yet</h1>
               <p className="hero-text">
-                Start the API and create a workspace to begin syncing contracts from Word or the web.
+                Start the API and create a workspace to begin syncing legal documents from Word or the support console.
               </p>
             </div>
           </section>
@@ -53,19 +46,13 @@ export default async function HomePage({
     }
 
     return (
-        <ReviewWorkspace
+        <ControlRoom
           ddApiBaseUrl={apiBaseUrl}
-          documentVersions={documentVersions}
-          initialDdReports={initialDdReports}
           billingSummary={billingSummary}
           trustProfile={trustProfile}
           adminOverview={adminOverview}
           releaseCriteria={releaseCriteria}
           output={output}
-          project={project}
-          queryRuns={queryRuns}
-          workflowRuns={workflowRuns}
-          workflowTemplates={workflowTemplates}
           selectedWorkspaceId={selectedWorkspaceId}
           workspace={workspace}
           workspaces={workspaces}
@@ -79,8 +66,8 @@ export default async function HomePage({
       <main className="page-shell">
         <section className="hero-panel">
           <div className="hero-copy">
-            <p className="eyebrow">Skua / Support Web App</p>
-            <h1>Web app is ready for the API</h1>
+            <p className="eyebrow">Skua / Control Room</p>
+            <h1>Control room is ready for the API</h1>
             <p className="hero-text">
               Start the FastAPI service at <code>http://127.0.0.1:8000</code> or set
               <code> SKUA_API_BASE_URL</code> for this app.

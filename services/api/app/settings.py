@@ -29,6 +29,10 @@ class Settings:
     support_token: str | None
     retention_days: int
     feature_flags_json: str
+    provider_bridge_mode: str
+    provider_request_timeout_seconds: float
+    openai_api_key: str | None
+    anthropic_api_key: str | None
 
 
 def get_settings() -> Settings:
@@ -58,4 +62,8 @@ def get_settings() -> Settings:
             "SKUA_FEATURE_FLAGS_JSON",
             '{"word_addin": true, "billing_controls": true, "trust_center": true, "support_admin": true}',
         ),
+        provider_bridge_mode=os.getenv("SKUA_PROVIDER_BRIDGE_MODE", "deterministic").strip().lower(),
+        provider_request_timeout_seconds=float(os.getenv("SKUA_PROVIDER_REQUEST_TIMEOUT_SECONDS", "30")),
+        openai_api_key=os.getenv("SKUA_OPENAI_API_KEY"),
+        anthropic_api_key=os.getenv("SKUA_ANTHROPIC_API_KEY"),
     )

@@ -1,5 +1,15 @@
 # Findings & Decisions
 
+## 2026-04-27 Secure Legal AI Workbench Reset Findings
+
+- The useful wedge is broader than contract review but narrower than legal workflow automation: lawyers want Claude/Codex-style help on confidential client documents, and the defensible product is the data boundary around that work.
+- The repo should keep Word sync, citations, apply flows, auth, provider/BYOK, usage, audit, trust, deletion, and clause memory. Those are directly useful for the secure legal AI workbench.
+- The repo should stop presenting DD reports, workflow templates, standards governance, and broad web workspaces as active v1 product surfaces. They can remain as implementation inventory only when not visible in the first-run path.
+- The Word add-in had the right primitives but the wrong information architecture for the new wedge. Resetting visible navigation to Assistant, Memory, and Controls makes Ask, Draft, and Review modes feel like one workbench instead of three separate tools.
+- The web app should be a control room for matter status, uploads, citations, trust, billing, support, and readiness. Pulling query/workflow/report data into the active web load path keeps old product gravity alive, so the reset stops doing that.
+- A new active spec, `docs/specs/secure-legal-ai-workbench-v1.md`, now supersedes the solo-first contract-copilot spec.
+- Removing the duplicate `apps/review`, `apps/chat`, `services/dd-api`, web DD proxy routes, Word legacy proxy routes, workflow package, standards assets, and public workflow/DD/standards API routes did not break the retained stack. The full repo test still passed after those deletions.
+
 ## 2026-04-20 Phase 3 Parsing Findings
 
 - The existing upload/parsing logic was still anchored to the legacy SQLite review path, so Phase 3 needed a platform-native document pipeline instead of another bridge inside `repository.py`.
@@ -194,3 +204,35 @@
 - The support web app already had the right role for the release dashboard. Extending it with support-token-gated billing and release metrics was cheaper and clearer than adding another admin surface.
 - End-to-end coverage only counts if it crosses feature boundaries. The new Phase 10 API tests exercise upload, parse, review, apply, ask, revise, clause save, rerun review, and release gating in one path, plus a failure path that deliberately trips the readiness dashboard.
 - The remaining high-risk gap is host-level behavior in real Word clients. Writing the computer-control plan now keeps the later Computer Use pass constrained to named workflows and expected outcomes instead of exploratory clicking.
+
+## Phase 41 Findings
+
+- The right Cursor analogy is the run loop, not the IDE shell. Lawyers need context-aware actions that apply in Word, with the model/data boundary visible before work leaves the document context.
+- Spend estimates were undercounting review and ask scope because the endpoint only considered prompt fields. A trustworthy pre-run boundary has to include synced document segments and selected playbooks, otherwise the UI is showing the wrong risk and cost surface.
+- A separate confirmation step is the cleanest minimal control. It forces the lawyer to see provider, plan, scope, sensitivity, storage, training, retention, and cost before running without adding a new product surface.
+- Lightweight PII/sensitivity detection is useful as an early warning, not a compliance engine. The current flags are intentionally simple and should be treated as UX affordances until a richer classifier exists.
+
+## Phase 42 Findings
+
+- The provider bridge should be opt-in live infrastructure, not a forced runtime dependency. `SKUA_PROVIDER_BRIDGE_MODE=deterministic` keeps tests, demos, and offline development stable, while `live` enables OpenAI/Anthropic calls when hosted or BYOK credentials are configured.
+- The first bridge belongs in Ask and Draft, not Review. Ask/Draft have compact output contracts and can preserve citation/retrieval guardrails while still proving real model routing.
+- PIPEDA maps cleanly to product controls: accountable privacy owner, purpose records, minimized collection, meaningful consent/notice, safeguards, retention/deletion schedules, third-party processor controls, cross-border transparency, access/challenge process, and breach records.
+- Ontario public-sector use needs a stronger packet than ordinary private-sector use. FIPPA/MFIPPA plus Bill 194-style AI obligations imply PIA-ready records, public-sector AI disclosure metadata, human oversight, risk management, documentation, and third-party digital-information controls.
+- PHIPA-sensitive matters should be treated as a separate policy mode. Even if Skua is not always a health information custodian, Ontario guidance makes clear that custodians remain responsible when third-party providers process PHI, so the product needs PHI flags, stronger provider due diligence, and breach-notification support.
+- LSO confidentiality duties make client information the baseline sensitivity class. The product should assume least disclosure and explicit provider authorization rather than treating AI provider transfer as ordinary background processing.
+
+## Phase 43 Findings
+
+- The Word preview failure was not a product-scope issue; it was local HTTPS hygiene. Office manifests correctly require `https://localhost:3001`, but Next's automatic cert path can fall back to HTTP when `mkcert` needs a password.
+- The build-backed `typecheck` scripts were fighting active Next dev servers. Keeping `typecheck` as `tsc --noEmit` avoids corrupting live preview caches while leaving `next build` available as an explicit build command.
+- The product should stay "Cursor for lawyers" in the work-loop sense: Word is the editor, the assistant is the model action surface, and privacy/compliance controls are pre-run guardrails inside that loop. A separate compliance dashboard would be scope drift for v1.
+
+## Phase 44 Findings
+
+- Canada-resident storage is easy; Canada-resident frontier inference is model-specific. Skua therefore needs a provider registry and policy router rather than assuming any provider/model is safe by brand.
+- Azure Canada is the best v1 default because the product is Word-native and Azure can align app hosting, storage, Key Vault, Entra, Private Link, and Azure Direct/OpenAI model deployments. The important caveat is deployment type: global/data-zone deployments are not Canada-only processing.
+- AWS Canada is the first alternate, especially for firms already on AWS and for Bedrock privacy controls. The caveat is that Bedrock's strongest models may require geographic or global cross-region inference from Canada, which should be treated as a policy warning or block for Canada-strict matters.
+- External SOTA models can still help the product if the router sends only public reference material, Skua internal planning, code, UI copy, or approved anonymized planning. They should not receive client documents, matter facts, citations, PII, PHI, or privileged legal analysis by default.
+- Self-hosting frontier-quality models is not the v1 path. Use managed models behind policy controls for quality, and reserve self-hosted/open-weight models for classification, redaction, retrieval support, or restricted deployments.
+- `self_hosted_qwen_ca` should be a named provider route. Its first job is privacy/firewall work and restricted-matter fallback, not replacing Claude/GPT quality. Managed Qwen on Bedrock or Vertex should be treated as external/unknown for Canada-strict matters until Canadian processing is proven in the registry.
+- UI should come next through a browser-safe lawyer workbench preview, because local Word sideload/cert friction should not block iteration on the actual lawyer experience.

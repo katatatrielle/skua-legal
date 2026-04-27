@@ -873,6 +873,16 @@ class PlatformSpendEstimateRequest(SkuaModel):
     playbook_id: str | None = None
 
 
+class PlatformDataBoundaryRecord(SkuaModel):
+    scope_label: str
+    input_summary: list[str] = Field(default_factory=list)
+    provider_policy: list[str] = Field(default_factory=list)
+    storage_policy: list[str] = Field(default_factory=list)
+    sensitivity_flags: list[str] = Field(default_factory=list)
+    training_policy: str
+    retention_policy: str
+
+
 class PlatformSpendEstimateRecord(SkuaModel):
     workspace_id: str
     run_type: str
@@ -890,6 +900,7 @@ class PlatformSpendEstimateRecord(SkuaModel):
     warning: bool
     blocked: bool
     message: str
+    data_boundary: PlatformDataBoundaryRecord | None = None
 
 
 class PlatformUsageLedgerRecord(SkuaModel):

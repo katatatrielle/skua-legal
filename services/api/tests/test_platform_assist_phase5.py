@@ -132,6 +132,48 @@ def test_platform_ask_run_returns_cited_answer(platform_client: TestClient) -> N
     assert list_response.json()[0]["id"] == payload["id"]
 
 
+def test_platform_ask_uses_provider_bridge_when_available(
+    platform_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, workspace_id = _register_user(platform_client)
+    document_version_id = _upload_selection(
+        platform_client,
+        headers=headers,
+        workspace_id=workspace_id,
+        document_name="provider.txt",
+        selection_text="Termination. Customer may terminate for convenience on thirty days' prior written notice.",
+    )
+    platform_assist = importlib.import_module("app.platform_assist")
+    provider_bridge = importlib.import_module("app.platform_provider_bridge")
+    calls: list[dict[str, object]] = []
+
+    def fake_generate_provider_text(*args, **kwargs):
+        calls.append(kwargs)
+        return provider_bridge.ProviderGeneration(
+            text="Based on the cited clause, the customer may terminate for convenience on thirty days' prior written notice.",
+            provider="openai",
+            model="gpt-5.4-mini",
+            input_tokens=100,
+            output_tokens=24,
+        )
+
+    monkeypatch.setattr(platform_assist, "generate_provider_text", fake_generate_provider_text)
+    response = platform_client.post(
+        "/api/v1/platform/ask-runs",
+        headers=headers,
+        json={
+            "workspace_id": workspace_id,
+            "document_version_id": document_version_id,
+            "question": "Can the customer terminate for convenience?",
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert calls
+    assert payload["answer"]["answer_text"].startswith("Based on the cited clause")
+
+
 def test_platform_ask_selection_scope_prefers_local_context(platform_client: TestClient) -> None:
     headers, workspace_id = _register_user(platform_client)
     selected_clause = "Notice. Customer must give ten days' prior written notice before termination."

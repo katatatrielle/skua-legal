@@ -1,6 +1,6 @@
 # Solo-First, Word-Native Contract Copilot - v1 Product Contract and Engineering Backlog
 
-Status: Draft
+Status: Superseded by `docs/specs/secure-legal-ai-workbench-v1.md`
 Updated: 2026-04-20
 Audience: Product, engineering, design, and pilot planning
 Related:
@@ -8,7 +8,9 @@ Related:
 - `docs/specs/open-contracts-endpoint-contracts.md`
 - `docs/specs/open-contracts-word-addin-wireframes.md`
 
-This document resets Skua v1 around a narrow wedge: a Word-native contract copilot for solo lawyers and very small firms. It intentionally replaces the broader due diligence and workspace-first direction as the primary v1 product story.
+This document is retained as legacy context. The active v1 product contract is now `docs/specs/secure-legal-ai-workbench-v1.md`, which resets Skua around a secure Claude/Codex-style legal AI workbench for confidential Word-based work.
+
+This earlier document reset Skua v1 around a narrow wedge: a Word-native contract copilot for solo lawyers and very small firms. It intentionally replaced the broader due diligence and workspace-first direction as the primary v1 product story at that time.
 
 If a proposed feature does not directly improve review, ask, revise, citations, saved fallback language, memory, or cost control, it is out of scope until after first pilots.
 
