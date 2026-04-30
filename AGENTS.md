@@ -1,23 +1,18 @@
-## Atrielle Agent Harness
+## Skua Agent Rules
 
-Use `atrielle-orchestrator` for non-trivial work.
-Local skill files live under `.agents/skills/<skill>/SKILL.md`; open the relevant file when routing to a skill.
+Start with `package.json`, `docs/specs/secure-legal-ai-workbench-v1.md`, `apps/`, `packages/`, and `services/api/`. Use `rg`, targeted file reads, workspace scripts, tests, and browser checks to navigate the repo.
 
-Start with:
-- `graphify-out/GRAPH_REPORT.md` if present
-- `docs/agent/index.md` if present
-- the relevant skill routed by `atrielle-orchestrator`
+Use ordinary repo navigation. Do not create standalone planning logs at the repo root. For planning, discuss first and write a durable `.prd/<feature>.md` only when the user asks for a PRD-style artifact.
 
-Routing:
-- architecture, dependencies, or cross-module questions: `context-navigation`
-- code changes, refactors, or feature work: `implementation-loop`
-- product, legal workflow, or privacy meaning: `product-domain`
-- tests, evals, screenshots, or builds: `validation-harness`
-- stale docs, graph drift, or cleanup: `repo-maintenance`
-- previews, releases, deploys, or incidents: `release-ops`
+Primary surfaces:
+- Product contract: `docs/specs/secure-legal-ai-workbench-v1.md`
+- Word workflow: `apps/word-addin/`
+- Web/control room: `apps/web/`
+- API and policy: `services/api/`
+- Shared packages: `packages/`
 
-Use global utility skills when appropriate:
-- `graphify` for graph generation and graph queries
-- `planning-with-files` for multi-step plans, cleanup sweeps, or release work
+Validation defaults:
+- Use targeted tests while iterating.
+- Run `npm run test` for broad confidence when the change touches shared contracts, API behavior, or user-facing workflows.
 
-Do not treat this file as the knowledge base. Repo truth belongs in docs, code, schemas, tests, evals, and graphify outputs.
+Preserve unrelated dirty worktree changes.

@@ -5,9 +5,8 @@ This file is the agent-facing table of contents for `skua`. Keep durable truth i
 ## Start Here
 
 1. Read `AGENTS.md`.
-2. Use `atrielle-orchestrator` to route the task.
-3. If present, read `graphify-out/GRAPH_REPORT.md` before broad code search.
-4. Read the smallest source-of-truth doc set below.
+2. Read the smallest source-of-truth doc set below.
+3. Use `rg`, workspace scripts, package metadata, tests, and targeted source reads to answer repo questions.
 
 ## Product Truth
 
@@ -29,12 +28,10 @@ This file is the agent-facing table of contents for `skua`. Keep durable truth i
 
 - Root `npm run test` for broad confidence.
 - `npm run lint`, workspace typechecks, and `npm run test:api` for targeted checks.
-- Use `validation-harness` for browser, API, and visual validation choices.
 
 ## Planning And Maintenance
 
 - `docs/pilot/` - pilot-facing workflows and issue reporting.
 - `docs/testing/` - QA plans and matrices.
-- Use `repo-maintenance` for stale docs, product drift, graph drift, and cleanup.
-- Use global `planning-with-files` for cleanup sweeps.
-- Use global `graphify` for graph generation and graph queries.
+- Use `.prd/<feature>.md` for durable PRD-style plans when requested.
+- Keep stale docs, product drift, and outdated claims out of active indexes.
